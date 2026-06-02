@@ -20,6 +20,23 @@ pip_install_optional() {
   return 0
 }
 
+require_python_310_plus() {
+  local python_bin="$APP_DIR/.venv/bin/python"
+  if sudo -u "$APP_USER" "$python_bin" - <<'PY'
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+  then
+    sudo -u "$APP_USER" "$python_bin" --version
+    return 0
+  fi
+
+  echo "Python 3.10+ is required by the upstream PRISM runtime." >&2
+  echo "Current virtualenv is too old: $python_bin" >&2
+  echo "Run: sudo bash deploy/aws/repair_and_verify_ec2.sh" >&2
+  exit 2
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root: sudo bash deploy/aws/import_prism_runtime.sh" >&2
   exit 2
@@ -39,6 +56,8 @@ if [ ! -x "$APP_DIR/.venv/bin/python" ]; then
   echo "Run bootstrap first: sudo bash deploy/aws/bootstrap_ec2_amazon_linux.sh" >&2
   exit 2
 fi
+
+require_python_310_plus
 
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required. Run the Amazon Linux bootstrap first." >&2
@@ -98,8 +117,8 @@ PRISM runtime import complete on EC2.
 
 Current checks:
   cd $APP_DIR
-  python scripts/check_integration.py
-  python scripts/check_prism_runtime_imports.py --json
+  .venv/bin/python scripts/check_integration.py
+  .venv/bin/python scripts/check_prism_runtime_imports.py --json
   bash scripts/diagnose_ec2_runtime.sh
 
 Note: this imports PRISM on the EC2 runtime even if GitHub Actions manual dispatch is unavailable.
