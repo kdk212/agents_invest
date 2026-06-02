@@ -33,7 +33,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     while True:
-        print(json.dumps({"status": "waiting_for_prism_insight_integration", "mode": settings.trading_mode}, ensure_ascii=False))
+        settings = load_runtime_settings()
+        safety = evaluate_startup_safety(settings)
+        if not safety.allowed:
+            print(
+                json.dumps(
+                    {
+                        "status": "runtime_safety_blocked",
+                        "settings": _public_settings(settings),
+                        "safety": asdict(safety),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 2
+
+        print(
+            json.dumps(
+                {
+                    "status": "waiting_for_prism_insight_integration",
+                    "mode": settings.trading_mode,
+                    "settings_source": settings.settings_source,
+                },
+                ensure_ascii=False,
+            )
+        )
         time.sleep(max(5, args.interval_seconds))
 
 
