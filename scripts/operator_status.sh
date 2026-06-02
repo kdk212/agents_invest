@@ -151,6 +151,15 @@ else
   fail "PRISM copy missing"
 fi
 
+krx_shim="$APP_DIR/prism-insight/krx_data_client.py"
+if [ -f "$krx_shim" ] && grep -q "pykrx-backed compatibility layer" "$krx_shim" 2>/dev/null; then
+  ok "KRX compatibility shim installed"
+elif [ -f "$krx_shim" ]; then
+  warn "KRX compatibility shim not detected; PRISM may require KRX_ID/KRX_PW"
+else
+  warn "KRX compatibility shim missing"
+fi
+
 if [ -x "$APP_DIR/.venv/bin/python" ]; then
   prism_ready="$(python_json_field "PYTHONPATH='$APP_DIR:$APP_DIR/prism-insight' '$APP_DIR/.venv/bin/python' '$APP_DIR/scripts/check_prism_runtime_imports.py' --json" "ready")"
   if [ "$prism_ready" = "True" ] || [ "$prism_ready" = "true" ]; then
