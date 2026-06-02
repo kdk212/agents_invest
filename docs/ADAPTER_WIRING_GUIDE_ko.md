@@ -10,8 +10,8 @@
 
 현재 자동 패치는 원본 `prism-insight/` 아래의 세 파일을 보강합니다.
 
-- `trigger_batch.py`: 후보 종목 DataFrame에 `profit_score`, `expected_value`, `risk_penalty`를 붙이고 정렬 기준에 반영
-- `stock_tracking_agent.py`: 실제 매수 직전 `RiskGovernor`를 통과하지 못한 종목 차단
+- `trigger_batch.py`: 후보 종목 DataFrame에 `profit_score`, `expected_value`, `risk_penalty`를 붙이고 정렬 기준과 JSON 출력에 반영
+- `stock_tracking_agent.py`: trigger JSON의 수익 컨텍스트를 Buy Specialist 프롬프트와 최종 RiskGovernor에 전달하고, 매수 직전 차단 후보를 주문으로 보내지 않음
 - `cores/agents/trading_agents.py`: Buy Specialist 프롬프트에 수익 기대값, 과거 트리거 성과, 위험 제어 컨텍스트 추가
 
 확인만 할 때:
@@ -51,7 +51,17 @@ scored_df = enrich_trigger_dataframe_with_profit_scores(
 score_column = "profit_score" if use_hybrid and trade_date else "composite_score"
 ```
 
-이 연결은 원본 트리거 로직을 지우지 않습니다. 기존 점수에 기대수익, 손실위험, 과거 트리거 성과를 추가로 반영합니다.
+그리고 `output_file` JSON 저장부의 `stock_info`에도 다음 필드를 포함합니다.
+
+```python
+stock_info["profit_score"] = float(stocks_df.loc[ticker, "profit_score"])
+stock_info["expected_value"] = float(stocks_df.loc[ticker, "expected_value"])
+stock_info["risk_penalty"] = float(stocks_df.loc[ticker, "risk_penalty"])
+stock_info["profit_decision_hint"] = str(stocks_df.loc[ticker, "profit_decision_hint"])
+stock_info["profit_score_reasons"] = str(stocks_df.loc[ticker, "profit_score_reasons"])
+```
+
+이 연결은 원본 트리거 로직을 지우지 않습니다. 기존 점수에 기대수익, 손실위험, 과거 트리거 성과를 추가로 반영하고, 그 결과를 다음 단계의 tracking agent가 읽을 수 있게 넘깁니다.
 
 ## 2. `stock_tracking_agent.py` RiskGovernor 연결
 
@@ -61,7 +71,9 @@ score_column = "profit_score" if use_hybrid and trade_date else "composite_score
 from optimization import apply_risk_governor_to_scenario
 ```
 
-`analysis_result["decision"] == "Enter"`로 매수하기 직전에 `scenario`를 RiskGovernor에 통과시킵니다.
+`trigger_results_file`을 읽을 때 `profit_score`, `expected_value`, `risk_penalty`, `profit_decision_hint`, `profit_score_reasons`를 `trigger_info_map`에 보관합니다. `_extract_trading_scenario()`는 이 값을 `agents_invest Profit Context`로 Buy Specialist 프롬프트에 넣고, `_analyze_report_core()`는 LLM 시나리오에 `trigger_profit_context`로 병합합니다.
+
+그 다음 `analysis_result["decision"] == "Enter"`로 매수하기 직전에 `scenario`를 RiskGovernor에 통과시킵니다.
 
 ```python
 scenario = apply_risk_governor_to_scenario(
@@ -146,7 +158,7 @@ python -m runtime.preflight --json
 
 1. GitHub Actions의 `integrate-prism-insight` 워크플로로 원본을 `prism-insight/`에 가져옵니다.
 2. 자동 패치가 세 파일에 적용됐는지 확인합니다.
-3. `trigger_batch.py` 후보 순위가 `profit_score` 기준으로 변했는지 확인합니다.
-4. `stock_tracking_agent.py`에서 RiskGovernor 차단 후보가 실제 주문으로 가지 않는지 paper 모드에서 확인합니다.
-5. Buy Specialist 응답에 수익 최적화 필드가 포함되는지 확인합니다.
+3. `trigger_batch.py` 후보 순위가 `profit_score` 기준으로 변했고 JSON에도 수익 필드가 저장되는지 확인합니다.
+4. `stock_tracking_agent.py`에서 Buy Specialist가 `agents_invest Profit Context`를 받는지 확인합니다.
+5. RiskGovernor 차단 후보가 실제 주문으로 가지 않는지 paper 모드에서 확인합니다.
 6. 최소 20거래일 이상 paper 검증 후 live 전환 여부를 판단합니다.
