@@ -61,6 +61,51 @@ except Exception:
 PY
 }
 
+show_runtime_failure_details() {
+  local file="$1"
+  if [ ! -f "$file" ] || [ ! -x "$APP_DIR/.venv/bin/python" ]; then
+    return 0
+  fi
+  "$APP_DIR/.venv/bin/python" - "$file" <<'PY' 2>/dev/null || true
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+
+status = data.get("status") or ""
+last_result = data.get("last_result") if isinstance(data.get("last_result"), dict) else {}
+results = last_result.get("results") if isinstance(last_result.get("results"), list) else []
+
+if status and "failed" in status:
+    print(f"WARN runtime failure detail: status={status}")
+
+for item in results:
+    if not isinstance(item, dict):
+        continue
+    try:
+        returncode = int(item.get("returncode", 1))
+    except Exception:
+        returncode = 1
+    if returncode == 0:
+        continue
+    mode = item.get("mode") or "unknown"
+    print(f"WARN PRISM batch failed: mode={mode}, exit={returncode}")
+    stderr = str(item.get("stderr_tail") or "").strip()
+    stdout = str(item.get("stdout_tail") or "").strip()
+    if stderr:
+        print("---- PRISM stderr tail ----")
+        print("\n".join(stderr.splitlines()[-20:]))
+    if stdout:
+        print("---- PRISM stdout tail ----")
+        print("\n".join(stdout.splitlines()[-20:]))
+PY
+}
+
 printf '\n== agents_invest short status ==\n'
 
 public_ip="$(metadata_value public-ipv4)"
@@ -156,6 +201,7 @@ if [ -f "$runtime_file" ]; then
   else
     warn "runtime heartbeat: ${runtime_status:-unknown}, missing_secrets=${missing_count:-unknown}, updated=${runtime_updated:-unknown}"
   fi
+  show_runtime_failure_details "$runtime_file"
 else
   warn "dashboard/runtime_status.json missing"
 fi
