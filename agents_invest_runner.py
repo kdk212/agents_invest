@@ -17,6 +17,7 @@ import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 try:  # Python 3.9 on Amazon Linux has zoneinfo.
     from zoneinfo import ZoneInfo
@@ -167,12 +168,18 @@ def _run_cycle(args, *, settings, secret_result, safety) -> int:
 
     _refresh_dashboard_status(dashboard_dir)
     ok = all(item["returncode"] == 0 for item in cycle_results)
+    telegram_result = _maybe_send_telegram_summary(
+        cycle_results=cycle_results,
+        settings=settings,
+        dashboard_url=os.getenv("DASHBOARD_PUBLIC_URL", "http://13.55.135.136/"),
+    )
     print(
         json.dumps(
             {
                 "status": "prism_batch_cycle_complete" if ok else "prism_batch_cycle_failed",
                 "mode": settings.trading_mode,
                 "safety": asdict(safety),
+                "telegram": telegram_result,
                 "results": cycle_results,
             },
             ensure_ascii=False,
@@ -210,6 +217,94 @@ def _run_prism_batch(*, prism_dir: Path, mode: str, log_level: str, output_path:
         "stdout_tail": _tail(completed.stdout),
         "stderr_tail": _tail(completed.stderr),
     }
+
+
+def _maybe_send_telegram_summary(*, cycle_results: list[dict[str, object]], settings, dashboard_url: str) -> dict[str, object]:
+    if not settings.telegram_enabled:
+        return {"enabled": False, "sent": False, "reason": "telegram_disabled"}
+
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return {"enabled": True, "sent": False, "reason": "telegram_secret_missing"}
+
+    summaries: list[str] = []
+    for result in cycle_results:
+        if int(result.get("returncode", 1)) != 0:
+            summaries.append(f"{_label_for_mode(str(result.get('mode', '-')))} 실행 실패")
+            continue
+        output_file = Path(str(result.get("output_file", "")))
+        candidates = _load_candidates(output_file)
+        if not candidates:
+            summaries.append(f"{_label_for_mode(str(result.get('mode', '-')))} 후보 없음")
+            continue
+        summaries.append(_format_candidate_summary(str(result.get("mode", "-")), candidates[:3]))
+
+    if not summaries:
+        return {"enabled": True, "sent": False, "reason": "no_summary"}
+
+    text = "\n".join(
+        [
+            "agents_invest PRISM paper 결과",
+            f"시간: {_now_seoul().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            *summaries,
+            "",
+            f"대시보드: {dashboard_url}",
+        ]
+    )
+    return _send_telegram_message(token=token, chat_id=chat_id, text=text)
+
+
+def _send_telegram_message(*, token: str, chat_id: str, text: str) -> dict[str, object]:
+    try:
+        import requests
+
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True},
+            timeout=15,
+        )
+        if response.ok:
+            return {"enabled": True, "sent": True, "status_code": response.status_code}
+        return {
+            "enabled": True,
+            "sent": False,
+            "status_code": response.status_code,
+            "reason": _tail(response.text, lines=3, max_chars=500),
+        }
+    except Exception as exc:
+        return {"enabled": True, "sent": False, "reason": f"{exc.__class__.__name__}: {exc}"}
+
+
+def _load_candidates(output_file: Path) -> list[dict[str, Any]]:
+    if not output_file.exists():
+        return []
+    try:
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for trigger_type, value in data.items():
+        if trigger_type == "metadata" or not isinstance(value, list):
+            continue
+        for item in value:
+            if isinstance(item, dict):
+                rows.append({**item, "trigger_type": trigger_type})
+    return sorted(rows, key=lambda item: float(item.get("profit_score", item.get("final_score", 0)) or 0), reverse=True)
+
+
+def _format_candidate_summary(mode: str, candidates: list[dict[str, Any]]) -> str:
+    lines = [f"[{_label_for_mode(mode)} 후보 TOP {len(candidates)}]"]
+    for index, item in enumerate(candidates, 1):
+        score = _number_text(item.get("profit_score", item.get("final_score", item.get("agent_fit_score"))), 2)
+        name = item.get("name") or "이름 없음"
+        code = item.get("code") or "-"
+        target = _price_text(item.get("target_price"))
+        stop = _number_text(item.get("stop_loss_pct"), 2)
+        lines.append(f"{index}. {name}({code}) 점수 {score} / 목표 {target} / 손절 {stop}%")
+    return "\n".join(lines)
 
 
 def _refresh_dashboard_status(dashboard_dir: Path) -> None:
@@ -287,6 +382,27 @@ def _public_secret_result(secret_result) -> dict[str, object]:
         "missing_env_names": list(secret_result.missing_env_names),
         "errors": list(secret_result.errors),
     }
+
+
+def _label_for_mode(mode: str) -> str:
+    return "오전" if mode == "morning" else "오후" if mode == "afternoon" else mode
+
+
+def _number_text(value: Any, digits: int = 2) -> str:
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def _price_text(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    if number <= 0:
+        return "-"
+    return f"{number:,.0f}"
 
 
 def _tail(text: str, *, lines: int = 20, max_chars: int = 4000) -> str:
