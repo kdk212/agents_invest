@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  agents_invest paper-mode EC2 runtime and dashboard for ap-southeast-2.
+  Creates an Ubuntu EC2 instance, runtime IAM role, security group, SSM default
+  parameters, nginx dashboard, and systemd runner.
+
+Parameters:
+  GitHubRepoOwner:
+    Type: String
+    Default: kdk212
+    Description: GitHub owner that contains the agents_invest repository.
+  GitHubRepoName:
+    Type: String
+    Default: agents_invest
+    Description: GitHub repository name.
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Branch to deploy on the EC2 instance.
+  GitHubToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional GitHub token for cloning a private repository. Leave blank only if the repository is public.
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t4g.small
+      - t4g.medium
+    Description: EC2 size. t3.small or larger is recommended.
+  UbuntuAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+    Description: Latest Ubuntu 22.04 amd64 AMI from Canonical public SSM parameters.
+  KeyName:
+    Type: String
+    Default: ''
+    Description: Optional EC2 key pair name for SSH access. Session Manager can be used without this.
+  AdminCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed to access SSH and the dashboard. Replace with your own IP/CIDR before production use.
+  DashboardPort:
+    Type: Number
+    Default: 80
+    MinValue: 1
+    MaxValue: 65535
+    Description: Public dashboard port. Port 80 gives http://EC2_PUBLIC_IP/.
+  RootVolumeSizeGb:
+    Type: Number
+    Default: 30
+    MinValue: 20
+    MaxValue: 200
+    Description: Root EBS volume size in GB.
+  SsmParameterPrefix:
+    Type: String
+    Default: /agents-invest
+    Description: Parameter Store prefix used by the runtime.
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+
+Resources:
+  AgentsInvestSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: agents_invest SSH and dashboard access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AdminCidr
+          Description: SSH from admin CIDR
+        - IpProtocol: tcp
+          FromPort: !Ref DashboardPort
+          ToPort: !Ref DashboardPort
+          CidrIp: !Ref AdminCidr
+          Description: Dashboard from admin CIDR
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Outbound internet access
+      Tags:
+        - Key: Name
+          Value: agents-invest-sg
+
+  AgentsInvestRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub agents-invest-runtime-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: agents-invest-runtime-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadAgentsInvestParameters
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmParameterPrefix}/*
+              - Sid: DecryptSecureParameters
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+              - Sid: WriteCloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+      Tags:
+        - Key: Name
+          Value: agents-invest-runtime-role
+
+  AgentsInvestInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref AgentsInvestRuntimeRole
+
+  KillSwitchParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${SsmParameterPrefix}/kill-switch
+      Type: String
+      Value: 'false'
+      Description: Set true to block new agents_invest execution.
+
+  TradingModeParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${SsmParameterPrefix}/trading-mode
+      Type: String
+      Value: paper
+      Description: Runtime trading mode. Keep paper until validation is complete.
+
+  PaperValidationApprovedParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${SsmParameterPrefix}/paper-validation-approved
+      Type: String
+      Value: 'false'
+      Description: Live mode gate. Keep false until paper validation is approved.
+
+  AgentsInvestInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref UbuntuAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      IamInstanceProfile: !Ref AgentsInvestInstanceProfile
+      SecurityGroupIds:
+        - !Ref AgentsInvestSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref RootVolumeSizeGb
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: agents-invest-runtime
+      UserData:
+        Fn::Base64: !Sub |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update
+          apt-get install -y git ca-certificates
+
+          repo_url="https://github.com/${GitHubRepoOwner}/${GitHubRepoName}.git"
+          if [ -n "${GitHubToken}" ]; then
+            repo_url="https://x-access-token:${GitHubToken}@github.com/${GitHubRepoOwner}/${GitHubRepoName}.git"
+          fi
+
+          rm -rf /tmp/agents_invest_bootstrap
+          git clone --branch "${GitHubBranch}" "$repo_url" /tmp/agents_invest_bootstrap
+          cd /tmp/agents_invest_bootstrap
+
+          REPO_URL="$repo_url" \
+          APP_BRANCH="${GitHubBranch}" \
+          AWS_REGION="${AWS::Region}" \
+          RUNTIME_MODE="paper" \
+          ENABLE_SSM_SETTINGS="true" \
+          SSM_PARAMETER_PREFIX="${SsmParameterPrefix}" \
+          bash deploy/aws/bootstrap_ec2_ubuntu.sh
+
+          cd /opt/agents_invest
+          DASHBOARD_PORT="${DashboardPort}" bash deploy/aws/install_dashboard_nginx.sh
+          systemctl start agents-invest
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance ID
+    Value: !Ref AgentsInvestInstance
+  PublicIp:
+    Description: Replace EC2_PUBLIC_IP with this value.
+    Value: !GetAtt AgentsInvestInstance.PublicIp
+  DashboardUrl:
+    Description: Dashboard URL after the instance finishes bootstrapping.
+    Value: !Sub
+      - http://${PublicIp}:${Port}/
+      - PublicIp: !GetAtt AgentsInvestInstance.PublicIp
+        Port: !Ref DashboardPort
+  SsmPrefix:
+    Description: Parameter Store prefix for runtime settings and secrets.
+    Value: !Ref SsmParameterPrefix
