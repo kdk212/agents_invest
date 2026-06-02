@@ -39,21 +39,11 @@ TRIGGER_SCORE_COLUMN_NEW = '    score_column = "profit_score" if use_hybrid and 
 
 STOCK_IMPORT = "from optimization import apply_risk_governor_to_scenario"
 STOCK_TRIGGER_MAP_MARKER = "'profit_score': stock.get('profit_score', 0)"
+STOCK_TRIGGER_RR_LINE = "'risk_reward_ratio': stock.get('risk_reward_ratio', 0)"
 STOCK_TRIGGER_MAP_OLD = """                            self.trigger_info_map[ticker] = {
                                 'trigger_type': trigger_type,
                                 'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
                                 'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
-                            }
-"""
-STOCK_TRIGGER_MAP_NEW = """                            self.trigger_info_map[ticker] = {
-                                'trigger_type': trigger_type,
-                                'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
-                                'risk_reward_ratio': stock.get('risk_reward_ratio', 0),
-                                'profit_score': stock.get('profit_score', 0),
-                                'expected_value': stock.get('expected_value', 0),
-                                'risk_penalty': stock.get('risk_penalty', 0),
-                                'profit_decision_hint': stock.get('profit_decision_hint', ''),
-                                'profit_score_reasons': stock.get('profit_score_reasons', ''),
                             }
 """
 STOCK_TRIGGER_SECTION_MARKER = "### agents_invest Profit Context"
@@ -259,9 +249,7 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
         )
 
     if STOCK_TRIGGER_MAP_MARKER not in text:
-        if STOCK_TRIGGER_MAP_OLD not in text:
-            raise RuntimeError("stock_tracking_agent.py anchor not found for trigger profit context map")
-        text = text.replace(STOCK_TRIGGER_MAP_OLD, STOCK_TRIGGER_MAP_NEW, 1)
+        text = add_profit_fields_to_trigger_info_map(text)
 
     if STOCK_TRIGGER_SECTION_MARKER not in text:
         if STOCK_TRIGGER_SECTION_ANCHOR not in text:
@@ -282,6 +270,27 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
     if changed and not check:
         STOCK_TRACKING.write_text(text, encoding="utf-8", newline="")
     return PatchResult(str(STOCK_TRACKING), changed, "risk governor and profit context wired" if changed else "already wired")
+
+
+def add_profit_fields_to_trigger_info_map(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if STOCK_TRIGGER_RR_LINE not in line:
+            continue
+        indent = line[: len(line) - len(line.lstrip())]
+        newline = "\r\n" if line.endswith("\r\n") else "\n"
+        if not line.rstrip().endswith(","):
+            lines[index] = line.rstrip("\r\n") + "," + newline
+        insert_at = index + 1
+        lines[insert_at:insert_at] = [
+            f"{indent}'profit_score': stock.get('profit_score', 0),{newline}",
+            f"{indent}'expected_value': stock.get('expected_value', 0),{newline}",
+            f"{indent}'risk_penalty': stock.get('risk_penalty', 0),{newline}",
+            f"{indent}'profit_decision_hint': stock.get('profit_decision_hint', ''),{newline}",
+            f"{indent}'profit_score_reasons': stock.get('profit_score_reasons', ''),{newline}",
+        ]
+        return "".join(lines)
+    raise RuntimeError("stock_tracking_agent.py risk_reward_ratio trigger map line not found")
 
 
 def patch_trading_agents(check: bool = False) -> PatchResult:
