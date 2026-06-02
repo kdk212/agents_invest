@@ -95,12 +95,16 @@ sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install \
 step "Install optional PRISM extras when compatible"
 pip_install_optional kospi_kosdaq_stock_server
 
+step "Install KRX compatibility shim"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/install_prism_krx_compat.py --prism-dir '$APP_DIR/$PREFIX'"
+
 step "Apply agents_invest adapter patches"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py"
 
 step "Verify PRISM runtime wiring"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/check_integration.py"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py --check"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/install_prism_krx_compat.py --prism-dir '$APP_DIR/$PREFIX' --check"
 
 step "Smoke-check PRISM trigger imports"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR:$APP_DIR/$PREFIX' .venv/bin/python scripts/check_prism_runtime_imports.py --prism-dir '$APP_DIR/$PREFIX' --json"
