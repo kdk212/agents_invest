@@ -21,70 +21,45 @@ https://kdk212.github.io/agents_invest/
 
 ## AWS EC2에서 24시간 대시보드 열기
 
-PC가 꺼져 있어도 보려면 EC2에서 정적 파일을 서빙합니다. 앱 실행은 `agents-invest` systemd 서비스가 담당하고, 대시보드는 별도 HTTP 서버나 nginx가 담당합니다.
+PC가 꺼져 있어도 보려면 EC2에서 정적 파일을 서빙합니다. 앱 실행은 `agents-invest` systemd 서비스가 담당하고, 대시보드는 nginx가 담당합니다.
 
-간단 확인용:
+부트스트랩이 끝난 EC2에서 다음 명령을 실행합니다.
 
 ```bash
 cd /opt/agents_invest
-.venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json
-python3 -m http.server 8080 --directory dashboard
+sudo bash deploy/aws/install_dashboard_nginx.sh
 ```
 
-EC2 Security Group에서 8080 포트를 본인 IP에만 열면 다음 주소로 확인할 수 있습니다.
-
-```text
-http://EC2_PUBLIC_IP:8080/
-```
-
-운영용으로는 nginx를 권장합니다.
-
-```bash
-sudo apt-get install -y nginx
-sudo tee /etc/nginx/sites-available/agents-invest-dashboard >/dev/null <<'EOF'
-server {
-    listen 80;
-    server_name _;
-    root /opt/agents_invest/dashboard;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-EOF
-sudo ln -sf /etc/nginx/sites-available/agents-invest-dashboard /etc/nginx/sites-enabled/agents-invest-dashboard
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-이후 주소:
+EC2 Security Group에서 80 포트를 본인 IP에만 열면 다음 주소로 확인할 수 있습니다.
 
 ```text
 http://EC2_PUBLIC_IP/
+```
+
+다른 포트를 쓰고 싶으면 다음처럼 실행합니다.
+
+```bash
+cd /opt/agents_invest
+sudo DASHBOARD_PORT=8080 bash deploy/aws/install_dashboard_nginx.sh
+```
+
+이 경우 주소는 다음입니다.
+
+```text
+http://EC2_PUBLIC_IP:8080/
 ```
 
 ## 상태 갱신
 
 대시보드는 `dashboard/status.json`을 읽습니다. 비밀값 원문은 포함하지 않습니다.
 
+자동 설치 스크립트는 5분마다 상태를 갱신하는 cron도 함께 설치합니다.
+
 수동 갱신:
 
 ```bash
 cd /opt/agents_invest
 .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json
-```
-
-5분마다 자동 갱신하려면 cron을 사용할 수 있습니다.
-
-```bash
-crontab -e
-```
-
-추가할 줄:
-
-```text
-*/5 * * * * cd /opt/agents_invest && .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json >/tmp/agents-invest-dashboard.log 2>&1
 ```
 
 ## 대시보드가 보여주는 것
