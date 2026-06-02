@@ -17,7 +17,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/profit_scoring.py`: 후보 종목 점수화 엔진
 - `optimization/risk_governor.py`: 매수 직전 리스크 게이트
 - `optimization/paper_validator.py`: 페이퍼트레이딩 실계좌 전환 검증
-- `optimization/adapters.py`: PRISM-INSIGHT 후보/시나리오 dict 연결 어댑터
+- `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
 - `runtime/`: paper/live 시작 전 안전 점검과 프리플라이트 CLI
 - `db/candidate_performance_tracker.sql`: 후보 성과 추적 스키마
 - `scripts/`: 원본 병합과 통합 상태 점검 보조 스크립트
@@ -65,7 +65,7 @@ python scripts/check_integration.py
 
 1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
 2. [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)에 따라 원본을 병합합니다.
-3. `trigger_batch.py`에 `enrich_candidates_with_profit_scores()`를 연결합니다.
+3. [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 `trigger_batch.py`에 `enrich_trigger_dataframe_with_profit_scores()`를 연결합니다.
 4. `stock_tracking_agent.py`의 주문 실행 직전에 `apply_risk_governor_to_scenario()`를 연결합니다.
 5. 페이퍼트레이딩 결과를 `PaperTradingValidator`로 검증합니다.
 6. 검증 기준을 통과한 뒤 [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)에 따라 배포합니다.
@@ -73,6 +73,7 @@ python scripts/check_integration.py
 ## 주요 문서
 
 - [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
+- [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
 - [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)
 - [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)
 - [PRISM-INSIGHT 라이선스 고지](docs/LICENSING_NOTICE_ko.md)
