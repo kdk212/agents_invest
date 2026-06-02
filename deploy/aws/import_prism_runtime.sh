@@ -11,6 +11,15 @@ step() {
   printf '\n==> %s\n' "$1"
 }
 
+pip_install_optional() {
+  local package="$1"
+  if sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install '$package'"; then
+    return 0
+  fi
+  echo "optional package install skipped: $package"
+  return 0
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root: sudo bash deploy/aws/import_prism_runtime.sh" >&2
   exit 2
@@ -59,11 +68,13 @@ sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install \
   PyYAML \
   tabulate \
   holidays \
-  kospi_kosdaq_stock_server \
   ujson \
   json-repair \
   tenacity \
   scipy"
+
+step "Install optional PRISM extras when compatible"
+pip_install_optional kospi_kosdaq_stock_server
 
 step "Apply agents_invest adapter patches"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py"
