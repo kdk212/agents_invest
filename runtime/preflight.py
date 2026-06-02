@@ -15,6 +15,11 @@ from runtime import evaluate_startup_safety, load_runtime_secrets, load_runtime_
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run agents_invest preflight checks")
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    parser.add_argument(
+        "--allow-missing-secrets",
+        action="store_true",
+        help="return success when only runtime secrets are missing; use for install/dashboard checks, not live trading",
+    )
     args = parser.parse_args(argv)
 
     settings = load_runtime_settings()
@@ -25,13 +30,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     safety = evaluate_startup_safety(settings)
     module_check = _check_modules()
+    ready = safety.allowed and secret_result.ok and module_check["ok"]
+    install_ready = safety.allowed and module_check["ok"] and secret_result.ok
+    if args.allow_missing_secrets:
+        install_ready = safety.allowed and module_check["ok"]
 
     result = {
         "startup_safety": asdict(safety),
         "secret_check": _public_secret_result(secret_result),
         "secret_env_present": public_secret_state(),
         "module_check": module_check,
-        "ready": safety.allowed and secret_result.ok and module_check["ok"],
+        "ready": ready,
+        "install_ready": install_ready,
+        "missing_secrets_allowed": bool(args.allow_missing_secrets),
     }
 
     if args.json:
@@ -39,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _print_text(result)
 
-    return 0 if result["ready"] else 2
+    return 0 if (result["ready"] or result["install_ready"]) else 2
 
 
 def _check_modules() -> dict[str, object]:
@@ -72,6 +83,8 @@ def _print_text(result: dict[str, object]) -> None:
     module_check = result["module_check"]
     secret_check = result["secret_check"]
     print(f"ready: {result['ready']}")
+    print(f"install_ready: {result['install_ready']}")
+    print(f"missing_secrets_allowed: {result['missing_secrets_allowed']}")
     print(f"mode: {safety['mode']}")
     print(f"safety_allowed: {safety['allowed']}")
     print("safety_reasons:")
