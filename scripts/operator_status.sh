@@ -145,6 +145,21 @@ else
   warn "dashboard/status.json missing"
 fi
 
+runtime_file="$APP_DIR/dashboard/runtime_status.json"
+if [ -f "$runtime_file" ]; then
+  runtime_status="$(json_field "$runtime_file" '.status')"
+  runtime_updated="$(json_field "$runtime_file" '.updated_at')"
+  runtime_ready="$(json_field "$runtime_file" '.runtime_ready')"
+  missing_count="$(json_field "$runtime_file" '.missing_secret_names | length')"
+  if [ "$runtime_ready" = "true" ]; then
+    ok "runtime heartbeat: ${runtime_status:-unknown}, updated=${runtime_updated:-unknown}"
+  else
+    warn "runtime heartbeat: ${runtime_status:-unknown}, missing_secrets=${missing_count:-unknown}, updated=${runtime_updated:-unknown}"
+  fi
+else
+  warn "dashboard/runtime_status.json missing"
+fi
+
 latest_count=0
 for file in "$APP_DIR"/dashboard/prism_latest_*.json; do
   if [ -f "$file" ]; then
