@@ -73,7 +73,9 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
 - 필요한 OS 패키지 설치
 - AWS CLI 설치
 - `/opt/agents_invest`에 저장소 준비
-- Python 가상환경 생성
+- Python 가상환경 생성 및 AWS용 `boto3` 설치
+- `config/runtime.env` 생성
+- `ENABLE_SSM_SETTINGS=true` 설정
 - 테스트와 시작 전 안전 점검 실행
 - `systemd` 서비스 등록
 
@@ -91,19 +93,27 @@ sudo journalctl -u agents-invest -f
 sudo systemctl stop agents-invest
 ```
 
-## 6. 비상정지
+## 6. SSM 기반 비상정지
 
-신규 실행을 막고 싶으면 Parameter Store에서 다음 값을 `true`로 바꿉니다.
+EC2 부트스트랩 기본값은 `ENABLE_SSM_SETTINGS=true`입니다. 이 경우 런타임은 반복 실행 중에도 SSM 설정을 다시 읽고, 다음 값이 `true`이면 신규 실행을 차단합니다.
 
 ```text
 /agents-invest/kill-switch = true
 ```
 
-로컬 설정 파일을 쓰는 경우에는 `config/runtime.env`에서 다음처럼 바꿉니다.
+콘솔에서 바꾸는 위치:
+
+```text
+Systems Manager > Parameter Store > /agents-invest/kill-switch
+```
+
+로컬 설정 파일만 쓰는 경우에는 `config/runtime.env`에서 다음처럼 바꿉니다.
 
 ```text
 KILL_SWITCH=true
 ```
+
+SSM 로딩이 실패하면 `paper` 모드에서는 경고로 남고, `live` 모드에서는 시작이 차단됩니다.
 
 ## 7. 실계좌 전환 조건
 
@@ -125,6 +135,7 @@ APP_ENV=production
 TRADING_MODE=live
 PAPER_VALIDATION_APPROVED=true
 KILL_SWITCH=false
+ENABLE_SSM_SETTINGS=true
 ```
 
 수익은 보장할 수 없습니다. 이 구조의 목적은 무리한 매매를 줄이고, 검증된 후보만 통과시키며, 중단 가능한 자동화로 운영 리스크를 낮추는 것입니다.
