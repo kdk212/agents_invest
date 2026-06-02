@@ -26,6 +26,21 @@ Session Manager가 안 보이면 다음 중 하나가 필요합니다.
 - 인스턴스가 완전히 켜진 뒤 몇 분 기다려야 합니다.
 - 또는 SSH key pair로 `SSH client` 접속을 사용합니다.
 
+## 빠른 진단
+
+EC2 안에서 아래 명령을 실행하면 서버, 대시보드, nginx, 서비스, 최근 로그를 한 번에 확인합니다.
+
+```bash
+cd /opt/agents_invest
+bash scripts/diagnose_ec2_runtime.sh
+```
+
+`/opt/agents_invest`가 없으면 저장소 clone 또는 CloudFormation bootstrap이 실패했을 가능성이 큽니다. 이때는 EC2 안에서 다음 로그를 확인합니다.
+
+```bash
+sudo tail -200 /var/log/cloud-init-output.log
+```
+
 ## 대시보드 설치
 
 EC2 안에서 실행합니다.
@@ -41,10 +56,10 @@ sudo bash deploy/aws/install_dashboard_nginx.sh
 http://PUBLIC_IPV4_ADDRESS/
 ```
 
-예:
+현재 알려진 인스턴스 IP 기준 예:
 
 ```text
-http://13.211.10.20/
+http://13.55.135.136/
 ```
 
 ## 서비스 상태 확인
