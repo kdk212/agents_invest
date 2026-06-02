@@ -22,17 +22,19 @@ Ping status: Offline
 Session Manager connection status: Not connected
 ```
 
-CloudShell에서 아래 두 줄을 실행합니다.
+가장 쉬운 방법은 아래 문서의 긴 명령 블록을 CloudShell에 그대로 붙여넣는 것입니다.
+
+```text
+docs/CLOUDSHELL_COPY_PASTE_SSM_ROLE_COMMAND_ko.md
+```
+
+이 방식은 저장소가 private이어도 raw 다운로드가 필요 없습니다.
+
+저장소가 public이면 아래 두 줄도 사용할 수 있습니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kdk212/agents_invest/main/deploy/aws/cloudshell_attach_ssm_role.sh -o /tmp/cloudshell_attach_ssm_role.sh
 bash /tmp/cloudshell_attach_ssm_role.sh
-```
-
-중요: 저장소가 private이면 위 `curl`이 실패할 수 있습니다. 그 경우 아래 문서의 `저장소가 private이면` 절차를 사용합니다.
-
-```text
-docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md
 ```
 
 그 다음 EC2를 재부팅합니다.
@@ -40,6 +42,8 @@ docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md
 ```bash
 aws ec2 reboot-instances --region ap-southeast-2 --instance-ids i-08bdbe63b2db7880f
 ```
+
+복붙용 명령 문서는 마지막에 재부팅까지 같이 실행합니다.
 
 2-5분 기다린 뒤 확인합니다.
 
@@ -56,6 +60,7 @@ Ping status: Online
 자세한 문서:
 
 ```text
+docs/CLOUDSHELL_COPY_PASTE_SSM_ROLE_COMMAND_ko.md
 docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md
 docs/SSM_SESSION_MANAGER_TROUBLESHOOTING_ko.md
 ```
