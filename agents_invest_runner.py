@@ -79,10 +79,11 @@ def main(argv: list[str] | None = None) -> int:
     safety = evaluate_startup_safety(settings)
     prism_status = _prism_status(Path(args.prism_dir))
     runtime_ready = _runtime_ready(safety_allowed=safety.allowed, secret_ok=secret_result.ok)
+    service_loop = not args.once and not args.run_batch_once
     install_ready = _install_ready(
         safety_allowed=safety.allowed,
         secret_ok=secret_result.ok,
-        allow_missing_secrets=args.allow_missing_secrets,
+        allow_missing_secrets=args.allow_missing_secrets or service_loop,
     )
     print(
         json.dumps(
@@ -93,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                 "prism": prism_status,
                 "runtime_ready": runtime_ready,
                 "install_ready": install_ready,
-                "missing_secrets_allowed": bool(args.allow_missing_secrets),
+                "missing_secrets_allowed": bool(args.allow_missing_secrets or service_loop),
             },
             ensure_ascii=False,
         ),
@@ -107,13 +108,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.run_batch_once:
+        if not runtime_ready:
+            _print_runtime_waiting(settings=settings, secret_result=secret_result, safety=safety)
+            return 2
         return _run_cycle(args, settings=settings, secret_result=secret_result, safety=safety)
+
+    dashboard_dir = Path(args.dashboard_dir).resolve()
+    dashboard_dir.mkdir(parents=True, exist_ok=True)
 
     while True:
         settings = load_runtime_settings()
         secret_result = _load_secrets_for_settings(settings)
         safety = evaluate_startup_safety(settings)
-        if not _runtime_ready(safety_allowed=safety.allowed, secret_ok=secret_result.ok):
+        if not safety.allowed:
             print(
                 json.dumps(
                     {
@@ -127,6 +134,12 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
             return 2
+
+        if not secret_result.ok:
+            _refresh_dashboard_status(dashboard_dir)
+            _print_runtime_waiting(settings=settings, secret_result=secret_result, safety=safety)
+            time.sleep(max(60, args.interval_seconds))
+            continue
 
         result = _run_cycle(args, settings=settings, secret_result=secret_result, safety=safety)
         if result != 0:
@@ -340,6 +353,22 @@ def _refresh_dashboard_status(dashboard_dir: Path) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
+    )
+
+
+def _print_runtime_waiting(*, settings, secret_result, safety) -> None:
+    print(
+        json.dumps(
+            {
+                "status": "waiting_for_runtime_secrets",
+                "settings": _public_settings(settings),
+                "secrets": _public_secret_result(secret_result),
+                "safety": asdict(safety),
+                "next_action": "run scripts/configure_runtime_secrets.py --target ssm before PRISM batch execution",
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
     )
 
 
