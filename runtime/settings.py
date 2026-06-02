@@ -1,10 +1,12 @@
-"""Runtime configuration loaded from environment variables."""
+"""Runtime configuration loaded from environment variables and optional SSM overrides."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Any, Mapping
+
+from .ssm import load_ssm_parameter_overrides
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,10 @@ class RuntimeSettings:
     max_expected_loss_pct: float
     telegram_enabled: bool
     cloudwatch_enabled: bool
+    ssm_settings_enabled: bool
+    ssm_parameter_prefix: str
+    settings_source: str
+    settings_errors: tuple[str, ...]
 
     @property
     def is_live(self) -> bool:
@@ -34,8 +40,34 @@ class RuntimeSettings:
         return self.trading_mode == "paper"
 
 
-def load_runtime_settings(env: Mapping[str, str] | None = None) -> RuntimeSettings:
-    values = env or os.environ
+def load_runtime_settings(
+    env: Mapping[str, str] | None = None,
+    *,
+    include_remote: bool = True,
+    parameter_client: Any | None = None,
+) -> RuntimeSettings:
+    values = dict(os.environ if env is None else env)
+    settings_errors: list[str] = []
+    settings_source = "env"
+
+    ssm_settings_enabled = _as_bool(values, "ENABLE_SSM_SETTINGS", False)
+    ssm_parameter_prefix = _as_text(values, "SSM_PARAMETER_PREFIX", "/agents-invest")
+    aws_region = _as_str(values, "AWS_REGION", "ap-southeast-2")
+
+    if include_remote and ssm_settings_enabled:
+        try:
+            values.update(
+                load_ssm_parameter_overrides(
+                    prefix=ssm_parameter_prefix,
+                    region=aws_region,
+                    client=parameter_client,
+                )
+            )
+            settings_source = "env+ssm"
+        except Exception as exc:  # pragma: no cover - exercised with fake client in tests
+            settings_errors.append(f"ssm_load_failed: {exc.__class__.__name__}: {exc}")
+            settings_source = "env+ssm_error"
+
     return RuntimeSettings(
         app_env=_as_str(values, "APP_ENV", "paper"),
         trading_mode=_as_str(values, "TRADING_MODE", "paper"),
@@ -52,11 +84,19 @@ def load_runtime_settings(env: Mapping[str, str] | None = None) -> RuntimeSettin
         max_expected_loss_pct=_as_float(values, "MAX_EXPECTED_LOSS_PCT", 7.0),
         telegram_enabled=_as_bool(values, "TELEGRAM_ENABLED", True),
         cloudwatch_enabled=_as_bool(values, "CLOUDWATCH_ENABLED", False),
+        ssm_settings_enabled=ssm_settings_enabled,
+        ssm_parameter_prefix=ssm_parameter_prefix,
+        settings_source=settings_source,
+        settings_errors=tuple(settings_errors),
     )
 
 
 def _as_str(env: Mapping[str, str], key: str, default: str) -> str:
     return str(env.get(key, default)).strip().lower()
+
+
+def _as_text(env: Mapping[str, str], key: str, default: str) -> str:
+    return str(env.get(key, default)).strip() or default
 
 
 def _as_bool(env: Mapping[str, str], key: str, default: bool) -> bool:
