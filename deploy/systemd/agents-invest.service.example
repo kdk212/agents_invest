@@ -8,7 +8,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/agents_invest
 EnvironmentFile=/opt/agents_invest/config/runtime.env
-# Starts with safety checks. It remains in placeholder mode until PRISM-INSIGHT is wired in.
+# Starts with safety checks, then runs imported PRISM trigger batches on a loop.
 ExecStart=/opt/agents_invest/.venv/bin/python -m agents_invest_runner
 Restart=always
 RestartSec=10
