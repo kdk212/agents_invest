@@ -38,6 +38,8 @@ PATCH_MARKERS = {
     "prism-insight/trigger_batch.py": (
         "enrich_trigger_dataframe_with_profit_scores(",
         'score_column = "profit_score"',
+        'stock_info["profit_score"]',
+        'stock_info["expected_value"]',
     ),
     "prism-insight/stock_tracking_agent.py": (
         "apply_risk_governor_to_scenario(",
