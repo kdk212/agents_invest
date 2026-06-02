@@ -62,10 +62,11 @@ else
   echo "cloud-init log may explain clone/bootstrap failure: sudo tail -200 /var/log/cloud-init-output.log"
 fi
 
-section "Python and preflight"
+section "Python and install preflight"
 if [ -x "$APP_DIR/.venv/bin/python" ]; then
   run_check "python version" "$APP_DIR/.venv/bin/python" --version
-  run_check "runtime preflight" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json
+  run_check "install preflight" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json --allow-missing-secrets
+  run_check "strict runtime preflight" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json
   run_check "dashboard status export" "$APP_DIR/.venv/bin/python" "$APP_DIR/scripts/export_dashboard_status.py" --output "$APP_DIR/dashboard/status.json"
 else
   echo "missing virtualenv python: $APP_DIR/.venv/bin/python"
@@ -96,5 +97,6 @@ if [ -f /var/log/cloud-init-output.log ]; then
 fi
 
 section "Next hint"
+echo "If install preflight passes but strict runtime preflight fails, enter OpenAI/KIS/Telegram SecureString values in SSM."
 echo "If local dashboard works but browser cannot open it, check EC2 Security Group inbound HTTP $DASHBOARD_PORT from your current IP."
 echo "If $APP_DIR is missing, private repo clone likely failed. Recreate stack with GitHubToken or clone manually on EC2."
