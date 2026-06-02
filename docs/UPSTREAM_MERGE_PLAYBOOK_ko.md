@@ -13,14 +13,15 @@
 
 ## GitHub Actions로 병합
 
-로컬 Git, Windows 경로, 인증서 문제가 있으면 GitHub Actions 수동 워크플로를 사용한다.
+로컬 Git, Windows 경로, 인증서 문제가 있으면 GitHub Actions 수동 워크플로를 사용한다. 화면별 절차는 [GitHub Actions PRISM-INSIGHT 통합 실행](GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)을 따른다.
 
 1. GitHub 저장소의 `Actions` 탭으로 이동한다.
 2. `integrate-prism-insight` 워크플로를 선택한다.
 3. `Run workflow`를 누른다.
 4. 기본값 그대로 실행하면 `integrate-prism-insight` 브랜치가 생성 또는 업데이트된다.
 5. 워크플로는 원본 import, 어댑터 자동 패치, 테스트, 통합 점검, 프리플라이트를 실행한다.
-6. 결과 브랜치를 확인한 뒤 PR 또는 main 병합을 진행한다.
+6. 성공하면 draft PR을 자동 생성하거나 기존 PR을 업데이트한다.
+7. draft PR에서 라이선스, 패치 위치, paper/live 안전 조건을 검토한 뒤 main 병합을 진행한다.
 
 이 방식은 `main`을 직접 수정하지 않는다.
 
@@ -217,51 +218,3 @@ db/candidate_performance_tracker.sql
 ```
 
 연결 대상:
-
-```text
-tracking/journal.py
-tracking/db_schema.py
-```
-
-저장 대상:
-
-- 매수한 후보
-- 매수하지 않은 후보
-- RiskGovernor가 차단한 후보
-- 7/14/30일 후행 성과
-
-## 7. 테스트
-
-```powershell
-python -m pip install -e ".[test]"
-python -m pytest -q
-python scripts/check_integration.py
-python scripts/patch_prism_adapters.py --check
-```
-
-`check_integration.py`는 원본 파일 존재뿐 아니라 세 파일의 보강 패치 마커까지 확인한다.
-
-## 8. AWS 배포 전 점검
-
-```powershell
-python -m runtime.preflight --json
-python -m agents_invest_runner --once
-```
-
-기본 paper 모드에서는 통과해야 한다.
-
-live 모드는 다음 조건이 모두 충족되어야 한다.
-
-- `APP_ENV=production`
-- `TRADING_MODE=live`
-- `PAPER_VALIDATION_APPROVED=true`
-- `KILL_SWITCH=false`
-- `ENABLE_SSM_SETTINGS=true`
-
-## 권장 다음 작업
-
-1. GitHub Actions 또는 방법 A로 원본을 `prism-insight/` 하위 폴더에 가져온다.
-2. `python scripts/patch_prism_adapters.py`로 자동 연결한다.
-3. 원본 실행을 먼저 paper/demo 모드로 확인한다.
-4. 페이퍼트레이딩 후보 성과 추적을 켠다.
-5. GitHub Actions와 로컬 테스트를 통과시킨다.
