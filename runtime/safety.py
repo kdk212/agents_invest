@@ -22,6 +22,13 @@ def evaluate_startup_safety(settings: RuntimeSettings) -> SafetyCheck:
     if settings.trading_mode not in {"paper", "live"}:
         blockers.append(f"지원하지 않는 TRADING_MODE: {settings.trading_mode}")
 
+    if settings.settings_errors:
+        message = "런타임 원격 설정 로딩 실패: " + "; ".join(settings.settings_errors)
+        if settings.is_live:
+            blockers.append(message)
+        else:
+            warnings.append(message)
+
     if settings.kill_switch:
         blockers.append("Kill Switch가 활성화되어 신규 실행을 차단함")
 
@@ -57,6 +64,9 @@ def _evaluate_live_mode(
 
     if not settings.paper_validation_approved:
         blockers.append("페이퍼트레이딩 검증 승인 전 live 모드 차단")
+
+    if not settings.ssm_settings_enabled:
+        warnings.append("live 모드에서 ENABLE_SSM_SETTINGS=true가 아니므로 AWS Kill Switch 반영이 제한됨")
 
     if settings.max_daily_loss_pct > 3.0:
         warnings.append("live 모드 일일 손실 한도가 3%를 초과함")
