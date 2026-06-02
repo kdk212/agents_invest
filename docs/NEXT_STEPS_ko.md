@@ -29,6 +29,12 @@ curl -fsSL https://raw.githubusercontent.com/kdk212/agents_invest/main/deploy/aw
 bash /tmp/cloudshell_attach_ssm_role.sh
 ```
 
+중요: 저장소가 private이면 위 `curl`이 실패할 수 있습니다. 그 경우 아래 문서의 `저장소가 private이면` 절차를 사용합니다.
+
+```text
+docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md
+```
+
 그 다음 EC2를 재부팅합니다.
 
 ```bash
