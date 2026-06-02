@@ -4,14 +4,14 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 
 ## 목표
 
-`dragon1086/prism-insight`의 기존 에이전트를 최대한 그대로 활용하되, 다음 보완 계층을 추가해 실전 운영 전 검증 가능한 투자 자동화 구조를 만듭니다.
+`dragon1086/prism-insight`의 기존 에이전트를 최대한 그대로 활용하되, 실전 운영 전에 검증 가능한 보완 계층을 추가합니다.
 
 - 후보 종목 수익 기대값 점수화
 - 매수 전 리스크 차단
-- Buy Specialist 프롬프트에 수익 기대값/과거 트리거 성과 컨텍스트 추가
+- Buy Specialist 프롬프트에 수익 기대값, 과거 트리거 성과, 위험 제어 컨텍스트 추가
 - 페이퍼트레이딩 검증
 - 트리거/섹터/에이전트별 성과 피드백
-- 24시간 운영을 위한 AWS 배포 준비
+- AWS 24시간 운영 준비
 
 ## 현재 포함된 모듈
 
@@ -29,12 +29,24 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 
 ## 빠른 점검
 
+원본 PRISM-INSIGHT를 아직 가져오기 전에는 저장소 보완 모듈만 먼저 점검합니다.
+
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
 python -m runtime.preflight --json
-python scripts/check_integration.py
+python scripts/check_integration.py --allow-missing-upstream
 python -m agents_invest_runner --once
+```
+
+원본을 `prism-insight/`에 붙이고 자동 패치까지 끝난 뒤에는 엄격한 최종 점검을 실행합니다.
+
+```bash
+python scripts/patch_prism_adapters.py
+python scripts/check_integration.py
+python scripts/patch_prism_adapters.py --check
+python -m pytest -q
+python -m runtime.preflight --json
 ```
 
 기본 실행은 `paper` 모드입니다. `live` 모드는 다음 조건을 모두 만족해야 시작됩니다.
@@ -58,6 +70,12 @@ AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switc
 4. 결과 브랜치 `integrate-prism-insight`를 확인합니다.
 5. 테스트가 통과하면 PR 또는 main 병합을 진행합니다.
 
+자동 패치는 다음 원본 파일에 보완을 연결합니다.
+
+- `prism-insight/trigger_batch.py`
+- `prism-insight/stock_tracking_agent.py`
+- `prism-insight/cores/agents/trading_agents.py`
+
 ### 로컬에서 실행
 
 Windows PowerShell:
@@ -75,18 +93,6 @@ bash scripts/integrate_prism_insight.sh
 python scripts/patch_prism_adapters.py
 python scripts/check_integration.py
 ```
-
-패치 상태만 확인:
-
-```bash
-python scripts/patch_prism_adapters.py --check
-```
-
-자동 패치는 다음 원본 파일에 보완을 연결합니다.
-
-- `prism-insight/trigger_batch.py`
-- `prism-insight/stock_tracking_agent.py`
-- `prism-insight/cores/agents/trading_agents.py`
 
 ## AWS 24시간 운영
 
@@ -106,7 +112,7 @@ AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](
 
 1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
 2. [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)에 따라 원본을 병합합니다.
-3. `python scripts/patch_prism_adapters.py`로 `trigger_batch.py`, `stock_tracking_agent.py`, `cores/agents/trading_agents.py`에 보완 어댑터를 자동 연결합니다.
+3. `python scripts/patch_prism_adapters.py`로 세 원본 파일에 보완 어댑터를 자동 연결합니다.
 4. 자동 패치가 실패하면 [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 수동 연결합니다.
 5. 페이퍼트레이딩 결과를 `PaperTradingValidator`로 검증합니다.
 6. 검증 기준을 통과한 뒤 [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)에 따라 배포합니다.
