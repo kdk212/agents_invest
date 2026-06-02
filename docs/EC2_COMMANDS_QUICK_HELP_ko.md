@@ -2,9 +2,31 @@
 
 이 문서는 AWS EC2에서 `agents_invest` 대시보드와 24시간 실행 상태를 확인할 때 자주 쓰는 명령을 어디서 실행해야 하는지 정리합니다.
 
+## 먼저 확인: CloudShell이 아닙니다
+
+`cd /opt/agents_invest` 같은 명령은 AWS CloudShell에서 실행하면 안 됩니다. CloudShell은 EC2 서버가 아니라 AWS 콘솔용 별도 터미널입니다.
+
+진짜 EC2에 접속했는지 먼저 확인합니다.
+
+```bash
+ps -p 1 -o comm=
+```
+
+정상적인 EC2 Ubuntu 서버라면 보통 다음처럼 나옵니다.
+
+```text
+systemd
+```
+
+아래처럼 나오거나 `systemctl`이 동작하지 않으면 EC2가 아니라 CloudShell 또는 다른 제한된 터미널일 가능성이 큽니다.
+
+```text
+System has not been booted with systemd as init system
+```
+
 ## 어디서 실행하나
 
-아래 같은 명령은 내 PC PowerShell이 아니라 EC2 서버 안에서 실행합니다.
+아래 같은 명령은 내 PC PowerShell이나 AWS CloudShell이 아니라 EC2 서버 안에서 실행합니다.
 
 ```bash
 cd /opt/agents_invest
@@ -14,10 +36,18 @@ sudo bash deploy/aws/install_dashboard_nginx.sh
 AWS 콘솔 경로:
 
 ```text
-EC2 > Instances > 인스턴스 선택 > Connect > Session Manager > Connect
+EC2 > Instances > i-08bdbe63b2db7880f 선택 > Connect > Session Manager > Connect
 ```
 
-검은 터미널 화면이 열리면 그 안에서 명령을 입력합니다.
+중요: AWS 콘솔 오른쪽 위의 `CloudShell` 버튼이 아니라, EC2 인스턴스 상세 화면의 `Connect` 버튼을 사용합니다.
+
+검은 터미널 화면이 열리면 먼저 다음을 확인합니다.
+
+```bash
+ps -p 1 -o comm=
+```
+
+`systemd`가 나오면 그 안에서 명령을 입력합니다.
 
 Session Manager가 안 보이면 다음 중 하나가 필요합니다.
 
