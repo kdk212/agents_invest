@@ -80,4 +80,4 @@ python -m runtime.preflight --json
 
 Write-Host ""
 Write-Host "완료: PRISM-INSIGHT 원본이 $Prefix/ 하위 폴더로 병합되었습니다." -ForegroundColor Green
-Write-Host "다음 단계: docs/UPSTREAM_MERGE_PLAYBOOK_ko.md의 6단계에 따라 trigger_batch.py와 stock_tracking_agent.py에 optimization 어댑터를 연결하세요."
+Write-Host "다음 단계: python scripts\patch_prism_adapters.py 로 trigger_batch.py, stock_tracking_agent.py, cores/agents/trading_agents.py를 보강 연결하세요."
