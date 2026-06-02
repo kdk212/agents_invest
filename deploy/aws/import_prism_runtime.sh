@@ -52,7 +52,18 @@ fi
 
 step "Install core PRISM runtime dependencies"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install -e '$APP_DIR[test,aws]'"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install python-dotenv pykrx==1.0.48 requests"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install \
+  python-dotenv \
+  pykrx==1.0.48 \
+  requests \
+  PyYAML \
+  tabulate \
+  holidays \
+  kospi_kosdaq_stock_server \
+  ujson \
+  json-repair \
+  tenacity \
+  scipy"
 
 step "Apply agents_invest adapter patches"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py"
