@@ -18,6 +18,43 @@ from runtime import evaluate_startup_safety, load_runtime_secrets, load_runtime_
 DEFAULT_OUTPUT = Path("dashboard/status.json")
 
 
+NEXT_ACTIONS_PENDING = [
+    {
+        "title": "CloudShell 복붙 명령 실행",
+        "detail": "Session Manager가 Offline이면 SSM Role 연결 전체 명령 실행",
+        "url": "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_COPY_PASTE_SSM_ROLE_COMMAND_ko.md",
+    },
+    {
+        "title": "PRISM 통합 Actions 실행",
+        "detail": "integrate-prism-insight 브랜치와 draft PR 생성",
+        "url": "https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml",
+    },
+    {
+        "title": "현재 다음 단계",
+        "detail": "AWS, GitHub, EC2 설치 순서 전체 보기",
+        "url": "https://github.com/kdk212/agents_invest/blob/main/docs/NEXT_STEPS_ko.md",
+    },
+]
+
+NEXT_ACTIONS_INTEGRATED = [
+    {
+        "title": "EC2 paper 서비스 확인",
+        "detail": "agents-invest systemd 상태와 journal 로그 확인",
+        "url": "https://github.com/kdk212/agents_invest/blob/main/docs/EC2_COMMANDS_QUICK_HELP_ko.md",
+    },
+    {
+        "title": "비밀값 입력 확인",
+        "detail": "OpenAI/KIS/Telegram SecureString 입력과 Telegram 수신 확인",
+        "url": "https://github.com/kdk212/agents_invest/blob/main/docs/RUNTIME_SECRET_INPUT_ko.md",
+    },
+    {
+        "title": "live 전환 조건 확인",
+        "detail": "paper 검증과 안전장치 확인 전까지 live 금지",
+        "url": "https://github.com/kdk212/agents_invest/blob/main/docs/NEXT_STEPS_ko.md",
+    },
+]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Export agents_invest dashboard status")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="status JSON output path")
@@ -53,6 +90,15 @@ def build_status(*, integration_present: bool = False, paper_approved: bool = Fa
     secret_state = "done" if secrets.loaded_env_names else "warning"
     overall = "blocked" if settings.kill_switch or not safety.allowed else "ok" if integration_present and validation_state == "통과" else "warning"
 
+    timeline = [
+        {"title": "보완 모듈 준비", "detail": "수익 점수화, 리스크 차단, 성과 피드백, SSM 비밀값 로딩 준비", "state": "done"},
+        {"title": "AWS Session Manager 복구", "detail": "CloudShell 복붙용 명령 또는 연결된 Session Manager로 EC2 접속 확인", "state": "done" if settings.ssm_settings_enabled else "warning"},
+        {"title": "PRISM 원본 통합", "detail": "prism-insight 폴더 확인" if integration_present else "GitHub Actions에서 integrate-prism-insight 실행 필요", "state": "done" if integration_present else "warning"},
+        {"title": "EC2 24시간 paper 설치", "detail": "systemd 서비스와 nginx 대시보드 확인", "state": "running"},
+        {"title": "paper 검증", "detail": "검증 통과" if validation_state == "통과" else "충분한 거래 수, Telegram 알림, Kill Switch, RiskGovernor 동작 확인 필요", "state": "done" if validation_state == "통과" else "warning"},
+        {"title": "live 전환", "detail": "모든 안전 조건 통과 전까지 금지", "state": "warning" if validation_state == "통과" else "blocked"},
+    ]
+
     return {
         "updated_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "overall": overall,
@@ -64,24 +110,20 @@ def build_status(*, integration_present: bool = False, paper_approved: bool = Fa
         "kill_switch_detail": "신규 실행 허용" if kill_switch_off else "신규 실행 차단",
         "validation_state": validation_state,
         "validation_detail": "paper 검증 통과" if validation_state == "통과" else "PaperTradingValidator 통과 전 live 금지",
-        "timeline": [
-            {"title": "보완 모듈 준비", "detail": "수익 점수화, 리스크 차단, 성과 피드백 코드 준비", "state": "done"},
-            {"title": "PRISM 원본 통합", "detail": "prism-insight 폴더 확인" if integration_present else "Actions 실행 필요", "state": "done" if integration_present else "warning"},
-            {"title": "paper 검증", "detail": "검증 통과" if validation_state == "통과" else "최소 거래 수와 검증 기준 충족 필요", "state": "done" if validation_state == "통과" else "warning"},
-            {"title": "AWS 24시간 운영", "detail": "EC2 systemd 또는 GitHub Pages로 PC 없이 운영", "state": "running"},
-            {"title": "live 전환", "detail": "모든 안전 조건 통과 전까지 금지", "state": "warning" if validation_state == "통과" else "blocked"},
-        ],
+        "timeline": timeline,
         "safety_checks": [
             {"title": "Kill Switch", "detail": "OFF" if kill_switch_off else "ON - 신규 실행 차단", "state": "done" if kill_switch_off else "blocked"},
             {"title": "RiskGovernor", "detail": "주문 직전 포지션/손실/시장 리스크 차단", "state": "done"},
             {"title": "비밀값", "detail": f"loaded={len(secrets.loaded_env_names)}, missing={len(secrets.missing_env_names)}", "state": secret_state},
             {"title": "Startup Safety", "detail": "; ".join(safety.reasons) or "시작 안전 조건 통과", "state": "done" if safety.allowed else "blocked"},
+            {"title": "PRISM 통합 PR", "detail": "prism-insight 폴더 확인됨" if integration_present else "integrate-prism-insight 브랜치와 draft PR 생성 필요", "state": "done" if integration_present else "warning"},
         ],
         "feedback": {
             "trigger_edge": "준비됨",
             "sector_edge": "준비됨",
             "ticker_edge": "준비됨",
         },
+        "next_actions": NEXT_ACTIONS_INTEGRATED if integration_present else NEXT_ACTIONS_PENDING,
     }
 
 
