@@ -1,7 +1,8 @@
 """Configure runtime secrets for local or AWS execution.
 
-This helper stores OpenAI, KIS, and Telegram secrets without printing plaintext
-values. Local runs write an env file. AWS runs write SSM SecureString values.
+This helper stores OpenAI, KIS, Telegram, and optional KRX direct-login secrets
+without printing plaintext values. Local runs write an env file. AWS runs write
+SSM SecureString values.
 """
 
 from __future__ import annotations
@@ -26,6 +27,8 @@ SECRET_SPECS = (
     ("KIS_ACCOUNT_NO", "kis/account-no", "KIS account number", False),
     ("TELEGRAM_BOT_TOKEN", "telegram/bot-token", "Telegram bot token", False),
     ("TELEGRAM_CHAT_ID", "telegram/chat-id", "Telegram chat id", False),
+    ("KRX_ID", "krx/id", "KRX direct login id", False),
+    ("KRX_PW", "krx/pw", "KRX direct login password", False),
 )
 
 LOCAL_DEFAULTS = {
