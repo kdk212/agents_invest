@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore[assignment]
 
 from runtime import evaluate_startup_safety, load_runtime_secrets, load_runtime_settings
+from runtime.candidate_history import record_prism_output
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_PRISM_DIR = ROOT / "prism-insight"
@@ -166,6 +167,7 @@ def _run_cycle(args, *, settings, secret_result, safety) -> int:
             )
         )
 
+    history_results = _record_candidate_history(cycle_results)
     _refresh_dashboard_status(dashboard_dir)
     ok = all(item["returncode"] == 0 for item in cycle_results)
     telegram_result = _maybe_send_telegram_summary(
@@ -179,6 +181,7 @@ def _run_cycle(args, *, settings, secret_result, safety) -> int:
                 "status": "prism_batch_cycle_complete" if ok else "prism_batch_cycle_failed",
                 "mode": settings.trading_mode,
                 "safety": asdict(safety),
+                "history": history_results,
                 "telegram": telegram_result,
                 "results": cycle_results,
             },
@@ -217,6 +220,21 @@ def _run_prism_batch(*, prism_dir: Path, mode: str, log_level: str, output_path:
         "stdout_tail": _tail(completed.stdout),
         "stderr_tail": _tail(completed.stderr),
     }
+
+
+def _record_candidate_history(cycle_results: list[dict[str, object]]) -> list[dict[str, object]]:
+    history_results: list[dict[str, object]] = []
+    for result in cycle_results:
+        if int(result.get("returncode", 1)) != 0:
+            history_results.append(
+                {"mode": result.get("mode"), "ok": False, "inserted": 0, "reason": "batch_failed"}
+            )
+            continue
+        output_file = Path(str(result.get("output_file", "")))
+        recorded = record_prism_output(output_file, selected_at=str(result.get("finished_at") or ""))
+        recorded["mode"] = result.get("mode")
+        history_results.append(recorded)
+    return history_results
 
 
 def _maybe_send_telegram_summary(*, cycle_results: list[dict[str, object]], settings, dashboard_url: str) -> dict[str, object]:
