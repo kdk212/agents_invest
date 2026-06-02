@@ -15,13 +15,30 @@ AWS 콘솔에서 다음 기준으로 EC2를 생성합니다.
 - Instance type: `t3.small` 이상
 - Storage: 20GB 이상
 - Security group: SSH는 본인 IP만 허용
-- IAM role: 아래 정책을 연결한 EC2 Role
+- IAM role: 런타임 정책을 연결한 EC2 Role
 
-IAM 정책 예시는 `deploy/aws/iam_policy_agents_invest_runtime.json`에 있습니다. 이 정책은 Parameter Store 읽기와 CloudWatch Logs 쓰기를 허용합니다.
+IAM 정책 예시:
 
-## 2. 기본 비밀값 만들기
+- `deploy/aws/iam_policy_agents_invest_runtime.json`: EC2가 실행 중 사용할 권한입니다. Parameter Store 읽기와 CloudWatch Logs 쓰기를 허용합니다.
+- `deploy/aws/iam_policy_agents_invest_setup.json`: 초기 설정자가 SSM 기본값을 만들 때 사용할 권한입니다. 계속 붙여둘 필요는 없습니다.
 
-EC2에 접속한 뒤 저장소를 받은 상태라면 다음을 실행합니다.
+## 2. EC2 접속 후 저장소 받기
+
+처음 접속한 홈 디렉터리에서 스크립트 실행용 저장소를 받습니다.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+
+git clone https://github.com/kdk212/agents_invest.git
+cd agents_invest
+```
+
+부트스트랩 스크립트는 실제 실행 위치를 `/opt/agents_invest`로 준비합니다. 홈 디렉터리의 clone은 설치 스크립트를 실행하기 위한 작업용입니다.
+
+## 3. 기본 비밀값 만들기
+
+SSM 값을 만들 권한이 있는 사용자 또는 임시 setup role로 다음을 실행합니다.
 
 ```bash
 AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
@@ -40,7 +57,7 @@ AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
 
 키는 절대 GitHub에 커밋하지 않습니다.
 
-## 3. EC2 부트스트랩
+## 4. EC2 부트스트랩
 
 EC2에서 다음 명령으로 서버를 준비합니다.
 
@@ -60,7 +77,7 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
 - 테스트와 시작 전 안전 점검 실행
 - `systemd` 서비스 등록
 
-## 4. 서비스 시작과 로그 확인
+## 5. 서비스 시작과 로그 확인
 
 ```bash
 sudo systemctl start agents-invest
@@ -74,7 +91,7 @@ sudo journalctl -u agents-invest -f
 sudo systemctl stop agents-invest
 ```
 
-## 5. 비상정지
+## 6. 비상정지
 
 신규 실행을 막고 싶으면 Parameter Store에서 다음 값을 `true`로 바꿉니다.
 
@@ -88,7 +105,7 @@ sudo systemctl stop agents-invest
 KILL_SWITCH=true
 ```
 
-## 6. 실계좌 전환 조건
+## 7. 실계좌 전환 조건
 
 아래 조건을 모두 만족하기 전에는 `live`로 전환하지 않습니다.
 
