@@ -1,0 +1,23 @@
+name: 00-run-this-first
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/00-run-this-first.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  button-check:
+    name: GitHub Actions button check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm workflow dispatch works
+        run: |
+          echo "GitHub Actions manual button is working."
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Commit: $GITHUB_SHA"
