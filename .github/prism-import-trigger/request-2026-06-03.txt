@@ -1,0 +1,3 @@
+Trigger PRISM upstream import on 2026-06-03.
+
+This file exists only to start .github/workflows/prism-import-on-trigger.yml on the integrate-prism-insight branch.
