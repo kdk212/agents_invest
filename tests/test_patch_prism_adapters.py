@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from scripts import patch_prism_adapters as patcher
 
 
@@ -85,7 +83,7 @@ async def process_reports(self):
 def test_patch_trading_agents_adds_profit_prompt_addendum(tmp_path, monkeypatch):
     target = tmp_path / "trading_agents.py"
     target.write_text(
-        """
+        '''
 def create_trading_scenario_agent(language="ko"):
     if language == "en":
         instruction = """
@@ -104,7 +102,7 @@ def create_trading_scenario_agent(language="ko"):
         {}
         """
     return instruction
-""".lstrip(),
+'''.lstrip(),
         encoding="utf-8",
     )
     monkeypatch.setattr(patcher, "TRADING_AGENTS", target)
