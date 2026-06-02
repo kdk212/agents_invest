@@ -35,9 +35,20 @@ EXPECTED_UPSTREAM_FILES = [
 ]
 
 PATCH_MARKERS = {
-    "prism-insight/trigger_batch.py": "enrich_trigger_dataframe_with_profit_scores(",
-    "prism-insight/stock_tracking_agent.py": "apply_risk_governor_to_scenario(",
-    "prism-insight/cores/agents/trading_agents.py": "agents_invest Profit Optimization Addendum",
+    "prism-insight/trigger_batch.py": (
+        "enrich_trigger_dataframe_with_profit_scores(",
+        'score_column = "profit_score"',
+    ),
+    "prism-insight/stock_tracking_agent.py": (
+        "apply_risk_governor_to_scenario(",
+        "### agents_invest Profit Context",
+        "trigger_profit_context",
+        "profit_score': stock.get('profit_score'",
+    ),
+    "prism-insight/cores/agents/trading_agents.py": (
+        "agents_invest Profit Optimization Addendum",
+        "risk_governor_context",
+    ),
 }
 
 LIKELY_AGENT_PATHS = [
@@ -102,11 +113,12 @@ def missing_paths(paths: list[str]) -> list[str]:
     return [path for path in paths if not (ROOT / path).exists()]
 
 
-def marker_status(markers: dict[str, str]) -> dict[str, bool]:
+def marker_status(markers: dict[str, tuple[str, ...]]) -> dict[str, bool]:
     status: dict[str, bool] = {}
-    for path, marker in markers.items():
+    for path, required_markers in markers.items():
         target = ROOT / path
-        status[path] = target.exists() and marker in target.read_text(encoding="utf-8", errors="ignore")
+        text = target.read_text(encoding="utf-8", errors="ignore") if target.exists() else ""
+        status[path] = bool(text and all(marker in text for marker in required_markers))
     return status
 
 
