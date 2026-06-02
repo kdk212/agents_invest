@@ -10,6 +10,7 @@ AWS_REGION="${AWS_REGION:-ap-southeast-2}"
 RUNTIME_MODE="${RUNTIME_MODE:-paper}"
 ENABLE_SSM_SETTINGS="${ENABLE_SSM_SETTINGS:-true}"
 SSM_PARAMETER_PREFIX="${SSM_PARAMETER_PREFIX:-/agents-invest}"
+DNF_EXTRA_ARGS="${DNF_EXTRA_ARGS:---allowerasing}"
 
 step() {
   printf '\n==> %s\n' "$1"
@@ -25,12 +26,25 @@ if ! id "$APP_USER" >/dev/null 2>&1; then
 fi
 
 PKG="dnf"
-if ! command -v dnf >/dev/null 2>&1; then
+PKG_INSTALL_ARGS=(-y)
+if command -v dnf >/dev/null 2>&1; then
+  if [ -n "$DNF_EXTRA_ARGS" ]; then
+    # shellcheck disable=SC2206
+    PKG_INSTALL_ARGS+=($DNF_EXTRA_ARGS)
+  fi
+elif command -v yum >/dev/null 2>&1; then
   PKG="yum"
+else
+  echo "Neither dnf nor yum was found." >&2
+  exit 2
 fi
 
+pkg_install() {
+  "$PKG" install "${PKG_INSTALL_ARGS[@]}" "$@"
+}
+
 step "Install OS packages"
-$PKG install -y \
+pkg_install \
   ca-certificates \
   curl \
   git \
@@ -40,7 +54,7 @@ $PKG install -y \
   unzip
 
 step "Install python venv support if available"
-$PKG install -y python3-virtualenv || true
+pkg_install python3-virtualenv || true
 
 step "Install AWS CLI v2 if missing"
 if ! command -v aws >/dev/null 2>&1; then
