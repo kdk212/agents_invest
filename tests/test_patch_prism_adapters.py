@@ -1,6 +1,14 @@
 from scripts import patch_prism_adapters as patcher
 
 
+TRIGGER_INFO_MAP_SNIPPET = """                            self.trigger_info_map[ticker] = {
+                                'trigger_type': trigger_type,
+                                'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
+                                'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
+                            }
+"""
+
+
 def test_patch_trigger_batch_wires_profit_adapter(tmp_path, monkeypatch):
     target = tmp_path / "trigger_batch.py"
     target.write_text(
@@ -56,9 +64,8 @@ def run_batch(output_file=None):
     assert not second.changed
 
 
-def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, monkeypatch):
-    target = tmp_path / "stock_tracking_agent.py"
-    source = (
+def stock_tracking_source(scenario_anchor: str) -> str:
+    return (
         "from cores.utils import parse_llm_json\n\n"
         "async def _extract_trading_scenario(self):\n"
         "    trigger_info_section = \"\"\n"
@@ -66,7 +73,7 @@ def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, m
         + "        prompt_message = f\"\"\"{trigger_info_section}\"\"\"\n"
         "    return {}\n\n"
         "async def _analyze_report_core(self):\n"
-        + patcher.STOCK_SCENARIO_MERGE_ANCHOR
+        + scenario_anchor
         + "    return raw_decision\n\n"
         "async def process_reports(self):\n"
         "    for state in analysis_states:\n"
@@ -88,15 +95,11 @@ def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, m
         "            for stock in stocks:\n"
         "                ticker = stock.get('code', '')\n"
         "                if ticker:\n"
-        + patcher.STOCK_TRIGGER_MAP_OLD
+        + TRIGGER_INFO_MAP_SNIPPET
     )
-    target.write_text(source, encoding="utf-8")
-    monkeypatch.setattr(patcher, "STOCK_TRACKING", target)
 
-    result = patcher.patch_stock_tracking()
-    text = target.read_text(encoding="utf-8")
 
-    assert result.changed
+def assert_stock_tracking_patch_applied(text: str) -> None:
     assert "from optimization import apply_risk_governor_to_scenario" in text
     assert "'profit_score': stock.get('profit_score', 0)" in text
     assert "### agents_invest Profit Context" in text
@@ -105,8 +108,35 @@ def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, m
     assert "apply_risk_governor_to_scenario(" in text
     assert "Purchase deferred by RiskGovernor" in text
 
+
+def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, monkeypatch):
+    target = tmp_path / "stock_tracking_agent.py"
+    target.write_text(stock_tracking_source(patcher.STOCK_SCENARIO_MERGE_ANCHOR), encoding="utf-8")
+    monkeypatch.setattr(patcher, "STOCK_TRACKING", target)
+
+    result = patcher.patch_stock_tracking()
+    text = target.read_text(encoding="utf-8")
+
+    assert result.changed
+    assert_stock_tracking_patch_applied(text)
+
     second = patcher.patch_stock_tracking()
     assert not second.changed
+
+
+def test_patch_stock_tracking_accepts_blank_line_after_scenario_call(tmp_path, monkeypatch):
+    target = tmp_path / "stock_tracking_agent.py"
+    target.write_text(
+        stock_tracking_source(patcher.STOCK_SCENARIO_MERGE_ANCHOR_WITH_BLANK),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(patcher, "STOCK_TRACKING", target)
+
+    result = patcher.patch_stock_tracking()
+    text = target.read_text(encoding="utf-8")
+
+    assert result.changed
+    assert_stock_tracking_patch_applied(text)
 
 
 def test_patch_trading_agents_adds_profit_prompt_addendum(tmp_path, monkeypatch):
