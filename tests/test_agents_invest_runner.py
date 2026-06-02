@@ -4,6 +4,7 @@ from pathlib import Path
 
 from agents_invest_runner import (
     _format_candidate_summary,
+    _install_ready,
     _load_candidates,
     _prism_status,
     _selected_batch_modes,
@@ -19,6 +20,12 @@ def test_selected_batch_modes_explicit_values():
 def test_selected_batch_modes_auto_uses_korea_market_half_day_split():
     assert _selected_batch_modes("auto", now=datetime(2026, 6, 3, 9, 30)) == ["morning"]
     assert _selected_batch_modes("auto", now=datetime(2026, 6, 3, 13, 10)) == ["afternoon"]
+
+
+def test_service_install_ready_can_wait_for_missing_secrets():
+    assert _install_ready(safety_allowed=True, secret_ok=False, allow_missing_secrets=True) is True
+    assert _install_ready(safety_allowed=False, secret_ok=False, allow_missing_secrets=True) is False
+    assert _install_ready(safety_allowed=True, secret_ok=False, allow_missing_secrets=False) is False
 
 
 def test_prism_status_requires_trigger_batch(tmp_path: Path):
