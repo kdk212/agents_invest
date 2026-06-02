@@ -2,55 +2,40 @@
 
 ## 목적
 
-원본 PRISM-INSIGHT의 에이전트와 트리거는 유지하면서 `agents_invest`의 보완 모듈을 실제 코드 흐름에 연결한다.
+원본 PRISM-INSIGHT의 에이전트와 트리거는 유지하면서 `agents_invest`의 수익 최적화 보완 모듈을 실제 코드 흐름에 연결합니다.
 
-이 문서는 원본 `dragon1086/prism-insight`의 현재 구조를 기준으로 한다.
+자동 연결은 우선 `python scripts/patch_prism_adapters.py`로 시도합니다. 자동 패치가 실패하면 이 문서를 기준으로 같은 위치에 수동 연결합니다.
+
+## 자동 패치 대상
+
+현재 자동 패치는 원본 `prism-insight/` 아래의 세 파일을 보강합니다.
+
+- `trigger_batch.py`: 후보 종목 DataFrame에 `profit_score`, `expected_value`, `risk_penalty`를 붙이고 정렬 기준에 반영
+- `stock_tracking_agent.py`: 실제 매수 직전 `RiskGovernor`를 통과하지 못한 종목 차단
+- `cores/agents/trading_agents.py`: Buy Specialist 프롬프트에 수익 기대값, 과거 트리거 성과, 위험 제어 컨텍스트 추가
+
+확인만 할 때:
+
+```bash
+python scripts/patch_prism_adapters.py --check
+```
+
+실제 반영할 때:
+
+```bash
+python scripts/patch_prism_adapters.py
+python scripts/check_integration.py
+```
 
 ## 1. `trigger_batch.py` 후보 점수화 연결
 
-### 확인된 원본 구조
-
-핵심 함수:
-
-```python
-def select_final_tickers(triggers: dict, trade_date: str = None, use_hybrid: bool = True, lookback_days: int = 10, macro_context: dict = None) -> dict:
-```
-
-원본 흐름:
-
-1. 각 트리거 함수가 DataFrame을 반환한다.
-2. `select_final_tickers()`가 트리거별 후보를 모은다.
-3. `score_candidates_by_agent_criteria()`가 `agent_fit_score`, `risk_reward_ratio`, `stop_loss_pct`, `target_price`를 붙인다.
-4. `final_score`로 정렬한다.
-5. 최종 3개 종목을 선택한다.
-
-### 추가 import
-
-`trigger_batch.py` 상단 import 영역에 추가한다.
+추가 import:
 
 ```python
 from optimization import enrich_trigger_dataframe_with_profit_scores
 ```
 
-만약 원본이 `prism-insight/` 하위 폴더에 있고 `optimization/`은 저장소 루트에 있다면, 실행 진입점에서 루트 경로가 `PYTHONPATH`에 포함되어야 한다.
-
-### 연결 위치
-
-`select_final_tickers()` 안에서 다음 블록을 찾는다.
-
-```python
-scored_df["final_score"] = (
-    scored_df["composite_score_norm"] * w_comp +
-    scored_df["agent_fit_score"] * w_agent +
-    scored_df["rs_score"] * w_rs +
-    scored_df["extension_score"] * w_ext
-)
-
-# Sort by final score
-scored_df = scored_df.sort_values("final_score", ascending=False)
-```
-
-그 직후에 추가한다.
+`select_final_tickers()` 안에서 원본이 `final_score`를 계산하고 정렬한 직후에 추가합니다.
 
 ```python
 scored_df = enrich_trigger_dataframe_with_profit_scores(
@@ -60,102 +45,25 @@ scored_df = enrich_trigger_dataframe_with_profit_scores(
 )
 ```
 
-### 정렬 기준
-
-원본은 아래처럼 선택 기준을 정한다.
-
-```python
-score_column = "final_score" if use_hybrid and trade_date else "composite_score"
-```
-
-수익 최적화 점수를 우선하려면 다음처럼 바꾼다.
+하이브리드 선택 기준은 수익 최적화 점수를 우선하도록 바꿉니다.
 
 ```python
 score_column = "profit_score" if use_hybrid and trade_date else "composite_score"
 ```
 
-보수적으로는 `final_score`를 유지하고, `profit_score`는 tie-breaker로만 써도 된다. 다만 현재 `enrich_trigger_dataframe_with_profit_scores()`가 `profit_score`, `expected_value`, `final_score` 순으로 DataFrame을 정렬하므로, 실제 선택 품질을 강화하려면 `score_column = "profit_score"`가 더 명확하다.
-
-### JSON 출력에 추가할 필드
-
-`output_file` 저장부에서 `stock_info`에 다음 필드를 추가한다.
-
-```python
-if "profit_score" in stocks_df.columns:
-    stock_info["profit_score"] = float(stocks_df.loc[ticker, "profit_score"])
-if "expected_value" in stocks_df.columns:
-    stock_info["expected_value"] = float(stocks_df.loc[ticker, "expected_value"])
-if "risk_penalty" in stocks_df.columns:
-    stock_info["risk_penalty"] = float(stocks_df.loc[ticker, "risk_penalty"])
-if "profit_decision_hint" in stocks_df.columns:
-    stock_info["profit_decision_hint"] = str(stocks_df.loc[ticker, "profit_decision_hint"])
-```
+이 연결은 원본 트리거 로직을 지우지 않습니다. 기존 점수에 기대수익, 손실위험, 과거 트리거 성과를 추가로 반영합니다.
 
 ## 2. `stock_tracking_agent.py` RiskGovernor 연결
 
-### 확인된 원본 구조
-
-핵심 함수:
-
-```python
-async def process_reports(self, pdf_report_paths: List[str]) -> Tuple[int, int]:
-```
-
-원본 흐름:
-
-1. `_analyze_report_core()`가 report를 분석한다.
-2. `_extract_trading_scenario()`가 Buy Specialist LLM 시나리오를 만든다.
-3. 보유 여부, 슬롯 수, 섹터 분산을 확인한다.
-4. `analysis_result["decision"] == "Enter"`이면 `buy_stock()`을 호출한다.
-5. 실제 KIS 매수 주문을 실행한다.
-
-### 추가 import
-
-`stock_tracking_agent.py` 상단 import 영역에 추가한다.
+추가 import:
 
 ```python
 from optimization import apply_risk_governor_to_scenario
 ```
 
-### 연결 위치
-
-`process_reports()` 안에서 다음 블록을 찾는다.
+`analysis_result["decision"] == "Enter"`로 매수하기 직전에 `scenario`를 RiskGovernor에 통과시킵니다.
 
 ```python
-buy_score = scenario.get("buy_score", 0)
-min_score = scenario.get("min_score", 0)
-logger.info(f"Buy score check: {company_name}({ticker}) - Score: {buy_score}")
-
-if analysis_result.get("decision") == "Enter":
-    buy_success = await self.buy_stock(ticker, company_name, current_price, scenario, rank_change_msg)
-```
-
-`if analysis_result.get("decision") == "Enter":` 바로 전에 다음을 추가한다.
-
-```python
-trigger_info = getattr(self, "trigger_info_map", {}).get(ticker, {})
-portfolio_context = {
-    "holding_count": current_slots,
-    "max_positions": self.max_slots,
-    "same_sector_count": 0,
-    "max_same_sector": self.MAX_SAME_SECTOR,
-    "cash_pct": 0,
-}
-market_context = {
-    "market_regime": scenario.get("market_condition", ""),
-    "index_change_pct": scenario.get("index_change_pct", 0),
-    "volatility_spike": scenario.get("volatility_spike", False),
-    "risk_event_active": scenario.get("risk_event_active", False),
-}
-candidate_context = {
-    "code": ticker,
-    "name": company_name,
-    "sector": sector,
-    "trigger_type": trigger_info.get("trigger_type", ""),
-    "historical_trigger_win_rate": scenario.get("historical_trigger_win_rate", 0),
-    "historical_trigger_count": scenario.get("historical_trigger_count", 0),
-}
-
 scenario = apply_risk_governor_to_scenario(
     scenario=scenario,
     candidate=candidate_context,
@@ -163,7 +71,9 @@ scenario = apply_risk_governor_to_scenario(
     market=market_context,
 )
 analysis_result["scenario"] = scenario
-analysis_result["decision"] = self._normalize_decision(scenario.get("decision", analysis_result.get("decision")))
+analysis_result["decision"] = self._normalize_decision(
+    scenario.get("decision", analysis_result.get("decision"))
+)
 
 if scenario.get("decision") == "no_entry":
     reason = "; ".join(scenario.get("risk_governor_reasons", [])) or "RiskGovernor blocked entry"
@@ -173,28 +83,39 @@ if scenario.get("decision") == "no_entry":
     continue
 ```
 
-### 주의
-
-`same_sector_count`, `cash_pct`, `index_change_pct`는 원본에 실제 계산값이 있으면 그 값으로 교체해야 한다. 초기에 값이 없으면 0으로 두되, RiskGovernor가 최소한 기대값, 손익비, 손실폭, 시장 급락 플래그를 기준으로 동작하게 한다.
+초기에는 `same_sector_count`, `cash_pct`, `index_change_pct`를 보수적인 기본값으로 넣어도 됩니다. 원본 코드에서 실제 계산값을 찾으면 그 값으로 교체합니다.
 
 ## 3. Buy Specialist 프롬프트 보완
 
 대상 파일:
 
 ```text
-cores/agents/trading_agents.py
+prism-insight/cores/agents/trading_agents.py
 ```
 
-Buy Specialist 응답 JSON에 다음 필드를 요구한다.
+원본 Buy Specialist는 CAN SLIM 기반 판단을 유지합니다. 여기에 `agents_invest Profit Optimization Addendum`을 추가해 다음 정보를 보조 판단 근거로 쓰게 합니다.
+
+- `profit_score`
+- `expected_value`
+- `risk_penalty`
+- `trigger_historical_win_rate`
+- `risk_governor_context`
+
+권장 판단 규칙:
+
+- `profit_score >= 70`이고 `expected_value > 0`이면 매수 근거로 우호적입니다.
+- `profit_score < 55`, `expected_value <= 0`, `risk_penalty >= 25` 중 하나라도 있으면 보수적으로 판단합니다.
+- 과거 트리거 승률이 40% 미만이고 표본이 10건 이상이면 추가 확인 근거가 필요합니다.
+- RiskGovernor가 차단한 후보는 Buy Specialist가 긍정적으로 보더라도 진입하지 않습니다.
+
+Buy Specialist JSON 응답에는 다음 필드를 추가로 요구합니다.
 
 ```json
 {
-  "expected_return_pct": 0,
-  "expected_loss_pct": 0,
   "expected_value": 0,
   "profit_score": 0,
-  "risk_reward_ratio": 0,
-  "position_weight_pct": 0,
+  "risk_penalty": 0,
+  "risk_governor_context": {},
   "no_entry_reasons": [],
   "risk_controls": []
 }
@@ -202,18 +123,30 @@ Buy Specialist 응답 JSON에 다음 필드를 요구한다.
 
 ## 4. 테스트 순서
 
+원본을 붙이기 전 저장소 준비상태 확인:
+
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
+python scripts/check_integration.py --allow-missing-upstream
+python -m runtime.preflight --json
+```
+
+원본 PRISM-INSIGHT를 붙이고 자동 패치를 적용한 뒤 최종 확인:
+
+```bash
+python scripts/patch_prism_adapters.py
 python scripts/check_integration.py
+python scripts/patch_prism_adapters.py --check
+python -m pytest -q
 python -m runtime.preflight --json
 ```
 
 ## 5. 권장 적용 순서
 
-1. `trigger_batch.py`에 DataFrame 어댑터를 먼저 연결한다.
-2. JSON 출력에 `profit_score`, `expected_value`를 추가한다.
-3. 페이퍼 모드에서 후보 순위 변화를 확인한다.
-4. `stock_tracking_agent.py`에 RiskGovernor를 연결한다.
-5. RiskGovernor 차단 종목이 watchlist/history에 남는지 확인한다.
-6. 최소 20거래일 이상 페이퍼트레이딩 후 live 전환 여부를 판단한다.
+1. GitHub Actions의 `integrate-prism-insight` 워크플로로 원본을 `prism-insight/`에 가져옵니다.
+2. 자동 패치가 세 파일에 적용됐는지 확인합니다.
+3. `trigger_batch.py` 후보 순위가 `profit_score` 기준으로 변했는지 확인합니다.
+4. `stock_tracking_agent.py`에서 RiskGovernor 차단 후보가 실제 주문으로 가지 않는지 paper 모드에서 확인합니다.
+5. Buy Specialist 응답에 수익 최적화 필드가 포함되는지 확인합니다.
+6. 최소 20거래일 이상 paper 검증 후 live 전환 여부를 판단합니다.
