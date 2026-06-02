@@ -1,6 +1,7 @@
 name: tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -30,3 +31,9 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Run runtime preflight
+        run: python -m runtime.preflight --json
+
+      - name: Check integration readiness
+        run: python scripts/check_integration.py --allow-missing-upstream
