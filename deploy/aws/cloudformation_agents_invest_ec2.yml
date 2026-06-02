@@ -29,8 +29,6 @@ Parameters:
       - t3.micro
       - t3.small
       - t3.medium
-      - t4g.small
-      - t4g.medium
     Description: EC2 size. t3.small or larger is recommended.
   UbuntuAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
