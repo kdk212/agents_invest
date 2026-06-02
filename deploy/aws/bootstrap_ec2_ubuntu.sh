@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/kdk212/agents_invest.git}"
+PUBLIC_REPO_URL="${PUBLIC_REPO_URL:-https://github.com/kdk212/agents_invest.git}"
 APP_DIR="${APP_DIR:-/opt/agents_invest}"
 APP_BRANCH="${APP_BRANCH:-main}"
 APP_USER="${APP_USER:-ubuntu}"
@@ -51,6 +52,9 @@ else
   sudo -u "$APP_USER" git -C "$APP_DIR" checkout "$APP_BRANCH"
   sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only origin "$APP_BRANCH"
 fi
+
+# If REPO_URL included a temporary GitHub token, do not leave it in .git/config.
+sudo -u "$APP_USER" git -C "$APP_DIR" remote set-url origin "$PUBLIC_REPO_URL"
 
 step "Create Python virtual environment"
 sudo -u "$APP_USER" python3 -m venv "$APP_DIR/.venv"
