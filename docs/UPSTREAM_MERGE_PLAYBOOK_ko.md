@@ -11,6 +11,30 @@
 - 원본 라이선스: AGPL-3.0
 - 기본 운영 모드: paper
 
+## 빠른 자동 병합
+
+가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져오고, 테스트와 프리플라이트를 실행한다.
+
+Windows PowerShell:
+
+```powershell
+.\scripts\integrate_prism_insight.ps1
+```
+
+Linux/macOS/AWS EC2:
+
+```bash
+bash scripts/integrate_prism_insight.sh
+```
+
+병합 상태 확인:
+
+```bash
+python scripts/check_integration.py
+```
+
+자동 스크립트가 실패하면 아래 수동 절차를 따른다.
+
 ## 권장 작업 경로
 
 Windows OneDrive 한글 경로에서는 Git 작업이 실패할 수 있다. 가능하면 영문 경로를 사용한다.
@@ -177,11 +201,13 @@ tracking/db_schema.py
 ```powershell
 python -m pip install -e ".[test]"
 python -m pytest -q
+python scripts/check_integration.py
 ```
 
 ## 8. AWS 배포 전 점검
 
 ```powershell
+python -m runtime.preflight --json
 python -m agents_invest_runner --once
 ```
 
