@@ -20,6 +20,7 @@ REQUIRED_ROOT_FILES = [
     "optimization/paper_validator.py",
     "optimization/adapters.py",
     "runtime/preflight.py",
+    "runtime/ssm.py",
     "db/candidate_performance_tracker.sql",
 ]
 
@@ -29,7 +30,14 @@ EXPECTED_UPSTREAM_FILES = [
     "prism-insight/LICENSE",
     "prism-insight/trigger_batch.py",
     "prism-insight/stock_tracking_agent.py",
+    "prism-insight/cores/agents/trading_agents.py",
 ]
+
+PATCH_MARKERS = {
+    "prism-insight/trigger_batch.py": "enrich_trigger_dataframe_with_profit_scores(",
+    "prism-insight/stock_tracking_agent.py": "apply_risk_governor_to_scenario(",
+    "prism-insight/cores/agents/trading_agents.py": "agents_invest Profit Optimization Addendum",
+}
 
 LIKELY_AGENT_PATHS = [
     "prism-insight/cores/agents/trading_agents.py",
@@ -55,6 +63,7 @@ def build_report() -> dict[str, object]:
     root_missing = missing_paths(REQUIRED_ROOT_FILES)
     upstream_missing = missing_paths(EXPECTED_UPSTREAM_FILES)
     agent_paths_found = [path for path in LIKELY_AGENT_PATHS if (ROOT / path).exists()]
+    patch_status = marker_status(PATCH_MARKERS)
 
     return {
         "repo_root": str(ROOT),
@@ -63,8 +72,10 @@ def build_report() -> dict[str, object]:
         "upstream_present": not upstream_missing,
         "upstream_missing": upstream_missing,
         "agent_paths_found": agent_paths_found,
+        "patch_status": patch_status,
         "ready_for_adapter_wiring": not root_missing and not upstream_missing,
-        "next_steps": next_steps(root_missing, upstream_missing),
+        "fully_wired": bool(not root_missing and not upstream_missing and all(patch_status.values())),
+        "next_steps": next_steps(root_missing, upstream_missing, patch_status),
     }
 
 
@@ -72,20 +83,26 @@ def missing_paths(paths: list[str]) -> list[str]:
     return [path for path in paths if not (ROOT / path).exists()]
 
 
-def next_steps(root_missing: list[str], upstream_missing: list[str]) -> list[str]:
+def marker_status(markers: dict[str, str]) -> dict[str, bool]:
+    status: dict[str, bool] = {}
+    for path, marker in markers.items():
+        target = ROOT / path
+        status[path] = target.exists() and marker in target.read_text(encoding="utf-8", errors="ignore")
+    return status
+
+
+def next_steps(root_missing: list[str], upstream_missing: list[str], patch_status: dict[str, bool]) -> list[str]:
     steps: list[str] = []
     if root_missing:
         steps.append("optimization/runtime/db 보완 파일이 누락되었습니다. kdk212/agents_invest 최신 main을 pull 하세요.")
     if upstream_missing:
         steps.append("PRISM-INSIGHT 원본이 아직 prism-insight/ 하위 폴더에 없습니다. scripts/integrate_prism_insight.*를 실행하세요.")
     if not root_missing and not upstream_missing:
-        steps.extend(
-            [
-                "prism-insight/trigger_batch.py에 enrich_candidates_with_profit_scores()를 연결하세요.",
-                "prism-insight/stock_tracking_agent.py에 apply_risk_governor_to_scenario()를 연결하세요.",
-                "python -m runtime.preflight --json 및 python -m pytest -q를 실행하세요.",
-            ]
-        )
+        unwired = [path for path, wired in patch_status.items() if not wired]
+        if unwired:
+            steps.append("python scripts/patch_prism_adapters.py 를 실행해 다음 파일을 보강 연결하세요: " + ", ".join(unwired))
+        else:
+            steps.append("adapter wiring markers are present. python -m runtime.preflight --json 및 python -m pytest -q를 실행하세요.")
     return steps
 
 
@@ -94,6 +111,7 @@ def print_report(result: dict[str, object]) -> None:
     print(f"optimization_modules_present: {result['optimization_modules_present']}")
     print(f"upstream_present: {result['upstream_present']}")
     print(f"ready_for_adapter_wiring: {result['ready_for_adapter_wiring']}")
+    print(f"fully_wired: {result['fully_wired']}")
 
     if result["optimization_missing"]:
         print("optimization_missing:")
@@ -109,6 +127,10 @@ def print_report(result: dict[str, object]) -> None:
         print("agent_paths_found:")
         for path in result["agent_paths_found"]:
             print(f"- {path}")
+
+    print("patch_status:")
+    for path, wired in result["patch_status"].items():
+        print(f"- {path}: {wired}")
 
     print("next_steps:")
     for step in result["next_steps"]:
