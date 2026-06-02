@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping
 
 from .ssm import load_ssm_parameter_overrides
+
+DEFAULT_RUNTIME_ENV_FILE = Path("config/runtime.env")
 
 
 @dataclass(frozen=True)
@@ -45,10 +48,19 @@ def load_runtime_settings(
     *,
     include_remote: bool = True,
     parameter_client: Any | None = None,
+    env_file: str | Path | None = DEFAULT_RUNTIME_ENV_FILE,
 ) -> RuntimeSettings:
-    values = dict(os.environ if env is None else env)
     settings_errors: list[str] = []
     settings_source = "env"
+
+    if env is None:
+        values = load_runtime_env_file(env_file, errors=settings_errors)
+        if values:
+            settings_source = "env_file+env"
+            apply_runtime_env_defaults(values)
+        values.update(os.environ)
+    else:
+        values = dict(env)
 
     ssm_settings_enabled = _as_bool(values, "ENABLE_SSM_SETTINGS", False)
     ssm_parameter_prefix = _as_text(values, "SSM_PARAMETER_PREFIX", "/agents-invest")
@@ -63,10 +75,10 @@ def load_runtime_settings(
                     client=parameter_client,
                 )
             )
-            settings_source = "env+ssm"
+            settings_source = f"{settings_source}+ssm"
         except Exception as exc:  # pragma: no cover - exercised with fake client in tests
             settings_errors.append(f"ssm_load_failed: {exc.__class__.__name__}: {exc}")
-            settings_source = "env+ssm_error"
+            settings_source = f"{settings_source}+ssm_error"
 
     return RuntimeSettings(
         app_env=_as_str(values, "APP_ENV", "paper"),
@@ -89,6 +101,52 @@ def load_runtime_settings(
         settings_source=settings_source,
         settings_errors=tuple(settings_errors),
     )
+
+
+def load_runtime_env_file(
+    path: str | Path | None = DEFAULT_RUNTIME_ENV_FILE,
+    *,
+    errors: list[str] | None = None,
+) -> dict[str, str]:
+    if path is None:
+        return {}
+
+    env_path = Path(path)
+    if not env_path.exists():
+        return {}
+
+    values: dict[str, str] = {}
+    try:
+        for line_number, raw_line in enumerate(env_path.read_text(encoding="utf-8").splitlines(), 1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                if errors is not None:
+                    errors.append(f"env_file_invalid_line:{env_path}:{line_number}")
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key:
+                if errors is not None:
+                    errors.append(f"env_file_empty_key:{env_path}:{line_number}")
+                continue
+            values[key] = _strip_env_value(value.strip())
+    except OSError as exc:
+        if errors is not None:
+            errors.append(f"env_file_load_failed:{env_path}:{exc.__class__.__name__}:{exc}")
+    return values
+
+
+def apply_runtime_env_defaults(values: Mapping[str, str]) -> None:
+    for key, value in values.items():
+        os.environ.setdefault(key, value)
+
+
+def _strip_env_value(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
 
 
 def _as_str(env: Mapping[str, str], key: str, default: str) -> str:
