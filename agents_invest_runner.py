@@ -289,24 +289,47 @@ def _run_prism_batch(*, prism_dir: Path, mode: str, log_level: str, output_path:
 
     command = [sys.executable, "trigger_batch.py", mode, log_level, "--output", str(output_path)]
     started_at = datetime.now().isoformat(timespec="seconds")
-    completed = subprocess.run(
-        command,
-        cwd=str(prism_dir),
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=timeout,
-        check=False,
-    )
-    return {
-        "mode": mode,
-        "returncode": completed.returncode,
-        "output_file": str(output_path),
-        "started_at": started_at,
-        "finished_at": datetime.now().isoformat(timespec="seconds"),
-        "stdout_tail": _tail(completed.stdout),
-        "stderr_tail": _tail(completed.stderr),
-    }
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(prism_dir),
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+        return {
+            "mode": mode,
+            "returncode": completed.returncode,
+            "output_file": str(output_path),
+            "started_at": started_at,
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "stdout_tail": _tail(completed.stdout),
+            "stderr_tail": _tail(completed.stderr),
+        }
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "mode": mode,
+            "returncode": 124,
+            "output_file": str(output_path),
+            "started_at": started_at,
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "stdout_tail": _tail(_coerce_text(exc.stdout)),
+            "stderr_tail": _tail(_coerce_text(exc.stderr)),
+            "failure_reason": f"PRISM batch timed out after {timeout} seconds",
+        }
+    except Exception as exc:
+        return {
+            "mode": mode,
+            "returncode": 125,
+            "output_file": str(output_path),
+            "started_at": started_at,
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "stdout_tail": "",
+            "stderr_tail": f"{exc.__class__.__name__}: {exc}",
+            "failure_reason": "PRISM batch runner exception",
+        }
 
 
 def _record_candidate_history(cycle_results: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -579,6 +602,14 @@ def _tail(text: str, *, lines: int = 20, max_chars: int = 4000) -> str:
         return ""
     selected = "\n".join(text.splitlines()[-lines:])
     return selected[-max_chars:]
+
+
+def _coerce_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
 
 
 def _env_int(name: str, default: int) -> int:
