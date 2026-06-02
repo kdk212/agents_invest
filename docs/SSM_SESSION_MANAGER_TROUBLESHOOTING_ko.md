@@ -14,7 +14,25 @@ Session Manager connection status: Not connected
 
 이 오류는 보통 코드 문제가 아니라 EC2 접속 권한 문제입니다.
 
-## 1. EC2에 IAM Role이 실제로 붙었는지 확인
+## 1. 가장 빠른 해결: CloudShell에서 Role 자동 연결
+
+콘솔에서 IAM Role 생성/연결 위치를 찾기 어렵다면 CloudShell 명령으로 처리할 수 있습니다.
+
+문서:
+
+```text
+docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md
+```
+
+이 문서는 아래 작업을 자동으로 수행합니다.
+
+- EC2용 IAM Role 생성
+- `AmazonSSMManagedInstanceCore` 연결
+- Instance Profile 생성
+- EC2 `i-08bdbe63b2db7880f`에 Role 연결 또는 교체
+- EC2 재부팅 명령 안내
+
+## 2. EC2에 IAM Role이 실제로 붙었는지 확인
 
 위치:
 
@@ -34,7 +52,7 @@ EC2 > Instances > i-08bdbe63b2db7880f 선택 > Actions > Security > Modify IAM r
 
 저장 후 2-5분 기다리고 `Connect > Session Manager`를 새로고침합니다.
 
-## 2. Role에 SSM 정책이 붙었는지 확인
+## 3. Role에 SSM 정책이 붙었는지 확인
 
 위치:
 
@@ -50,7 +68,7 @@ AmazonSSMManagedInstanceCore
 
 없으면 `Add permissions`로 추가합니다.
 
-## 3. Role의 신뢰 관계가 EC2용인지 확인
+## 4. Role의 신뢰 관계가 EC2용인지 확인
 
 위치:
 
@@ -79,7 +97,7 @@ IAM > Roles > EC2에 붙인 Role 선택 > Trust relationships
 
 만약 Lambda, ECS 등 다른 서비스용 Role이면 EC2가 사용할 수 없습니다. 이 경우 새 Role을 만드는 편이 빠릅니다.
 
-## 4. EC2를 재부팅
+## 5. EC2를 재부팅
 
 Role과 정책이 맞는데도 계속 Offline이면 재부팅합니다.
 
@@ -91,7 +109,7 @@ EC2 > Instances > i-08bdbe63b2db7880f 선택 > Instance state > Reboot instance
 
 재부팅 후 2-5분 기다리고 Session Manager 화면을 다시 봅니다.
 
-## 5. EC2가 인터넷 또는 SSM 엔드포인트에 접근 가능한지 확인
+## 6. EC2가 인터넷 또는 SSM 엔드포인트에 접근 가능한지 확인
 
 SSM Agent는 AWS Systems Manager 서비스와 통신해야 합니다.
 
@@ -114,7 +132,7 @@ ec2messages
 
 처음 설정에서는 public subnet + outbound 허용 구성이 가장 쉽습니다.
 
-## 6. SSH 키가 있으면 우회 접속
+## 7. SSH 키가 있으면 우회 접속
 
 `.pem` 키가 있으면 Session Manager를 고치기 전에도 SSH로 접속할 수 있습니다.
 
@@ -132,7 +150,7 @@ ssh -i "C:\path\to\your-key.pem" ec2-user@13.55.135.136
 
 자세한 SSH 절차는 `docs/EC2_SSH_FALLBACK_ko.md`를 봅니다.
 
-## 7. 가장 빠른 대안: 새 EC2를 CloudFormation으로 만들기
+## 8. 가장 빠른 대안: 새 EC2를 CloudFormation으로 만들기
 
 기존 EC2의 IAM Role, subnet, route table을 계속 추적하기 어렵다면 새 EC2를 만드는 편이 더 빠를 수 있습니다.
 
@@ -157,7 +175,7 @@ docs/AWS_CLOUDFORMATION_QUICKSTART_ko.md
 deploy/aws/cloudformation_agents_invest_ec2.yml
 ```
 
-## 8. 정상으로 바뀐 뒤 실행할 명령
+## 9. 정상으로 바뀐 뒤 실행할 명령
 
 Session Manager가 Online이 되면 EC2 안에서 실행합니다.
 
