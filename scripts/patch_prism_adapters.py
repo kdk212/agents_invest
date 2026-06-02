@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TRIGGER_BATCH = ROOT / "prism-insight" / "trigger_batch.py"
 STOCK_TRACKING = ROOT / "prism-insight" / "stock_tracking_agent.py"
+TRADING_AGENTS = ROOT / "prism-insight" / "cores" / "agents" / "trading_agents.py"
 
 
 @dataclass(frozen=True)
@@ -83,13 +84,54 @@ STOCK_PATCH = """                    trigger_info = getattr(self, \"trigger_info
                         buy_success = await self.buy_stock(ticker, company_name, current_price, scenario, rank_change_msg)
 """
 
+PROFIT_ADDENDUM_MARKER = "## agents_invest Profit Optimization Addendum"
+TRADING_AGENT_ADDENDUM_EN = """
+        ## agents_invest Profit Optimization Addendum
+
+        If the prompt includes `profit_score`, `expected_value`, `risk_penalty`,
+        `trigger_historical_win_rate`, or `risk_governor_context`, use them as
+        additional evidence without replacing the CAN SLIM framework.
+        - Treat profit_score >= 70 and expected_value > 0 as supportive context.
+        - Treat profit_score < 55, expected_value <= 0, or risk_penalty >= 25 as a
+          serious warning that must be addressed in rejection_reason or rationale.
+        - If trigger_historical_win_rate is available and below 40% after at least
+          10 prior samples, require one extra confirmation before Enter.
+        - Always include these output fields when possible: profit_score,
+          expected_value, risk_penalty, risk_governor_context, no_entry_reasons,
+          risk_controls.
+
+"""
+TRADING_AGENT_ADDENDUM_KO = """
+        ## agents_invest Profit Optimization Addendum
+
+        프롬프트에 `profit_score`, `expected_value`, `risk_penalty`,
+        `trigger_historical_win_rate`, `risk_governor_context`가 주입되어 있다면
+        CAN SLIM 프레임워크를 대체하지 말고 추가 근거로 사용하십시오.
+        - profit_score >= 70 이고 expected_value > 0 이면 진입 판단의 보조 근거로 봅니다.
+        - profit_score < 55, expected_value <= 0, risk_penalty >= 25 중 하나라도 있으면
+          rejection_reason 또는 rationale에서 반드시 다뤄야 하는 경고로 봅니다.
+        - trigger_historical_win_rate가 있고 과거 표본이 10건 이상이며 승률이 40% 미만이면
+          진입 전 추가 확인 1개를 더 요구합니다.
+        - 가능하면 출력 JSON에 profit_score, expected_value, risk_penalty,
+          risk_governor_context, no_entry_reasons, risk_controls를 포함하십시오.
+
+"""
+TRADING_AGENT_ANCHORS = (
+    ("        ## JSON Response Format\n", TRADING_AGENT_ADDENDUM_EN),
+    ("        ## JSON 응답 형식\n", TRADING_AGENT_ADDENDUM_KO),
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patch imported PRISM-INSIGHT adapter wiring")
     parser.add_argument("--check", action="store_true", help="do not write files; fail if patches are not applied")
     args = parser.parse_args(argv)
 
-    results = [patch_trigger_batch(check=args.check), patch_stock_tracking(check=args.check)]
+    results = [
+        patch_trigger_batch(check=args.check),
+        patch_stock_tracking(check=args.check),
+        patch_trading_agents(check=args.check),
+    ]
     for result in results:
         status = "changed" if result.changed else "ok"
         print(f"{status}: {result.path} - {result.message}")
@@ -146,6 +188,25 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
     if changed and not check:
         STOCK_TRACKING.write_text(text, encoding="utf-8", newline="")
     return PatchResult(str(STOCK_TRACKING), changed, "risk governor adapter wired" if changed else "already wired")
+
+
+def patch_trading_agents(check: bool = False) -> PatchResult:
+    if not TRADING_AGENTS.exists():
+        return PatchResult(str(TRADING_AGENTS), False, "missing; import upstream first")
+
+    original = TRADING_AGENTS.read_text(encoding="utf-8")
+    text = original
+
+    if PROFIT_ADDENDUM_MARKER not in text:
+        for anchor, addendum in TRADING_AGENT_ANCHORS:
+            if anchor not in text:
+                raise RuntimeError(f"trading_agents.py anchor not found: {anchor.strip()}")
+            text = text.replace(anchor, addendum + anchor, 1)
+
+    changed = text != original
+    if changed and not check:
+        TRADING_AGENTS.write_text(text, encoding="utf-8", newline="")
+    return PatchResult(str(TRADING_AGENTS), changed, "profit context prompt addendum wired" if changed else "already wired")
 
 
 if __name__ == "__main__":
