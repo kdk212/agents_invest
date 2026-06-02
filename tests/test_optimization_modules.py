@@ -1,6 +1,9 @@
+import pandas as pd
+
 from optimization.adapters import (
     apply_risk_governor_to_scenario,
     enrich_candidates_with_profit_scores,
+    enrich_trigger_dataframe_with_profit_scores,
 )
 from optimization.paper_validator import PaperTrade, PaperTradingValidator
 from optimization.profit_scoring import ProfitScoreInput, ProfitScoringEngine
@@ -132,6 +135,38 @@ def test_adapter_enriches_and_sorts_candidates():
     assert enriched[0]["profit_score"] > enriched[1]["profit_score"]
     assert "expected_value" in enriched[0]
     assert enriched[0]["profit_score_reasons"]
+
+
+def test_dataframe_adapter_preserves_index_and_scales_normalized_scores():
+    df = pd.DataFrame(
+        {
+            "stock_name": ["약한후보", "강한후보"],
+            "Close": [10000, 10000],
+            "target_price": [10800, 11500],
+            "stop_loss_price": [9300, 9500],
+            "stop_loss_pct": [0.07, 0.05],
+            "risk_reward_ratio": [1.1, 3.0],
+            "final_score": [0.45, 0.88],
+            "composite_score": [0.40, 0.90],
+            "agent_fit_score": [0.50, 0.95],
+            "rs_score": [0.35, 0.82],
+            "extension_score": [0.30, 0.80],
+            "Amount_norm": [0.40, 0.95],
+        },
+        index=["000001", "000002"],
+    )
+
+    enriched = enrich_trigger_dataframe_with_profit_scores(
+        df,
+        trigger_type="거래량 급증 상위주",
+        market_regime="moderate_bull",
+    )
+
+    assert list(enriched.index)[0] == "000002"
+    assert "profit_score" in enriched.columns
+    assert enriched.loc["000002", "profit_score"] > enriched.loc["000001", "profit_score"]
+    assert enriched.loc["000002", "expected_value"] > 0
+    assert "종합 우위" in enriched.loc["000002", "profit_score_reasons"]
 
 
 def test_adapter_applies_risk_governor_to_scenario():
