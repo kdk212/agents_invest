@@ -55,12 +55,6 @@ TRIGGER_OUTPUT_PATCH_FIELDS = (
 STOCK_IMPORT = "from optimization import apply_risk_governor_to_scenario"
 STOCK_TRIGGER_MAP_MARKER = "'profit_score': stock.get('profit_score', 0)"
 STOCK_TRIGGER_RR_LINE = "'risk_reward_ratio': stock.get('risk_reward_ratio', 0)"
-STOCK_TRIGGER_MAP_OLD = """                            self.trigger_info_map[ticker] = {
-                                'trigger_type': trigger_type,
-                                'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
-                                'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
-                            }
-"""
 STOCK_TRIGGER_SECTION_MARKER = "### agents_invest Profit Context"
 STOCK_TRIGGER_SECTION_ANCHOR = """            # Prepare prompt based on language
             if self.language == "ko":
@@ -89,6 +83,17 @@ STOCK_SCENARIO_MERGE_ANCHOR = """            scenario = await self._extract_trad
                 trigger_type=trigger_type,
                 trigger_mode=trigger_mode
             )
+            raw_decision = scenario.get("decision", "No entry")
+"""
+STOCK_SCENARIO_MERGE_ANCHOR_WITH_BLANK = """            scenario = await self._extract_trading_scenario(
+                report_content,
+                rank_change_msg,
+                ticker=ticker,
+                sector=None,
+                trigger_type=trigger_type,
+                trigger_mode=trigger_mode
+            )
+
             raw_decision = scenario.get("decision", "No entry")
 """
 STOCK_SCENARIO_MERGE_PATCH = """            scenario = await self._extract_trading_scenario(
@@ -301,9 +306,12 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
         text = text.replace(STOCK_TRIGGER_SECTION_ANCHOR, STOCK_TRIGGER_SECTION_PATCH + STOCK_TRIGGER_SECTION_ANCHOR, 1)
 
     if STOCK_SCENARIO_MERGE_MARKER not in text:
-        if STOCK_SCENARIO_MERGE_ANCHOR not in text:
+        if STOCK_SCENARIO_MERGE_ANCHOR in text:
+            text = text.replace(STOCK_SCENARIO_MERGE_ANCHOR, STOCK_SCENARIO_MERGE_PATCH, 1)
+        elif STOCK_SCENARIO_MERGE_ANCHOR_WITH_BLANK in text:
+            text = text.replace(STOCK_SCENARIO_MERGE_ANCHOR_WITH_BLANK, STOCK_SCENARIO_MERGE_PATCH, 1)
+        else:
             raise RuntimeError("stock_tracking_agent.py anchor not found for scenario profit context merge")
-        text = text.replace(STOCK_SCENARIO_MERGE_ANCHOR, STOCK_SCENARIO_MERGE_PATCH, 1)
 
     if "apply_risk_governor_to_scenario(" not in text:
         if STOCK_ANCHOR not in text:
