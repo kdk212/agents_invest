@@ -7,6 +7,12 @@ from .adapters import (
     enrich_trigger_dataframe_with_profit_scores,
 )
 from .paper_validator import PaperTrade, PaperTradingValidator, ValidationReport
+from .performance_feedback import (
+    CandidateFeedback,
+    CandidateOutcome,
+    PerformanceBucket,
+    PerformanceFeedbackEngine,
+)
 from .profit_scoring import ProfitScoreInput, ProfitScoreResult, ProfitScoringEngine
 from .risk_governor import (
     CandidateRiskState,
@@ -17,10 +23,14 @@ from .risk_governor import (
 )
 
 __all__ = [
+    "CandidateFeedback",
+    "CandidateOutcome",
     "CandidateRiskState",
     "MarketRiskState",
     "PaperTrade",
     "PaperTradingValidator",
+    "PerformanceBucket",
+    "PerformanceFeedbackEngine",
     "PortfolioRiskState",
     "ProfitScoreInput",
     "ProfitScoreResult",
