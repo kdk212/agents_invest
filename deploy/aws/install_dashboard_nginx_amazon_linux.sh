@@ -36,16 +36,21 @@ if [ ! -d "$APP_DIR/dashboard" ]; then
 fi
 
 PKG="dnf"
-if ! command -v dnf >/dev/null 2>&1; then
+PKG_INSTALL_ARGS=(-y)
+if command -v dnf >/dev/null 2>&1; then
+  PKG_INSTALL_ARGS+=(--allowerasing)
+elif command -v yum >/dev/null 2>&1; then
   PKG="yum"
+else
+  echo "Neither dnf nor yum was found." >&2
+  exit 2
 fi
 
 step "Install nginx"
-$PKG install -y nginx
+"$PKG" install "${PKG_INSTALL_ARGS[@]}" nginx
 
 step "Export initial dashboard status"
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" "$APP_DIR/scripts/export_dashboard_status.py" \
-  --output "$APP_DIR/dashboard/status.json"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json"
 
 step "Install nginx site"
 cat >/etc/nginx/conf.d/agents-invest-dashboard.conf <<EOF
@@ -67,7 +72,7 @@ systemctl restart nginx
 
 step "Install 5-minute status refresh cron"
 cat >/etc/cron.d/agents-invest-dashboard <<EOF
-*/5 * * * * $APP_USER cd $APP_DIR && .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json >/tmp/agents-invest-dashboard.log 2>&1
+*/5 * * * * $APP_USER cd $APP_DIR && PYTHONPATH=$APP_DIR .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json >/tmp/agents-invest-dashboard.log 2>&1
 EOF
 chmod 644 /etc/cron.d/agents-invest-dashboard
 
