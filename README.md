@@ -20,6 +20,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/adapters.py`: PRISM-INSIGHT 후보/시나리오 dict 연결 어댑터
 - `runtime/`: paper/live 시작 전 안전 점검과 프리플라이트 CLI
 - `db/candidate_performance_tracker.sql`: 후보 성과 추적 스키마
+- `scripts/`: 원본 병합과 통합 상태 점검 보조 스크립트
 - `tests/`: 대표 의사결정, 어댑터, 런타임 안전 테스트
 - `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 라이선스, 병합 플레이북
 
@@ -29,6 +30,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 python -m pip install -e ".[test]"
 python -m pytest -q
 python -m runtime.preflight --json
+python scripts/check_integration.py
 python -m agents_invest_runner --once
 ```
 
@@ -38,6 +40,26 @@ python -m agents_invest_runner --once
 - `TRADING_MODE=live`
 - `PAPER_VALIDATION_APPROVED=true`
 - `KILL_SWITCH=false`
+
+## 원본 가져오기
+
+Windows PowerShell:
+
+```powershell
+.\scripts\integrate_prism_insight.ps1
+```
+
+Linux/macOS/AWS EC2:
+
+```bash
+bash scripts/integrate_prism_insight.sh
+```
+
+가져온 뒤 확인:
+
+```bash
+python scripts/check_integration.py
+```
 
 ## 적용 방향
 
