@@ -4,6 +4,7 @@ from .adapters import (
     apply_risk_governor_to_scenario,
     candidate_to_profit_score_input,
     enrich_candidates_with_profit_scores,
+    enrich_trigger_dataframe_with_profit_scores,
 )
 from .paper_validator import PaperTrade, PaperTradingValidator, ValidationReport
 from .profit_scoring import ProfitScoreInput, ProfitScoreResult, ProfitScoringEngine
@@ -30,4 +31,5 @@ __all__ = [
     "apply_risk_governor_to_scenario",
     "candidate_to_profit_score_input",
     "enrich_candidates_with_profit_scores",
+    "enrich_trigger_dataframe_with_profit_scores",
 ]
