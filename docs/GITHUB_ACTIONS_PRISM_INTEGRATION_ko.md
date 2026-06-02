@@ -49,7 +49,25 @@ python -m runtime.preflight --json
 6. draft PR을 자동 생성하거나 기존 PR을 업데이트합니다.
 7. Actions Summary에 브랜치와 검증 결과 요약을 남깁니다.
 
+## 아직 PR이 없을 때
+
+현재 원격 저장소에 아래가 없으면 워크플로가 아직 성공 완료되지 않은 상태입니다.
+
+```text
+Branch: integrate-prism-insight
+Draft PR: Integrate PRISM-INSIGHT upstream with agents_invest adapters
+```
+
+이 경우 `Actions > integrate-prism-insight > Run workflow`를 다시 실행합니다.
+
 ## 성공 후 확인
+
+성공하면 GitHub 저장소에 다음이 보여야 합니다.
+
+```text
+Code > Branches > integrate-prism-insight
+Pull requests > Draft PR
+```
 
 Draft PR에서 다음을 확인합니다.
 
@@ -58,6 +76,61 @@ Draft PR에서 다음을 확인합니다.
 - `stock_tracking_agent.py`에서 RiskGovernor가 매수 직전에 호출되는지
 - `trading_agents.py`의 Buy Specialist 프롬프트에 Profit Optimization Addendum이 들어갔는지
 - 테스트, 통합 마커, 어댑터 idempotency, install-mode preflight가 통과했는지
+
+## 실패했을 때 확인 위치
+
+GitHub에서 아래 위치로 갑니다.
+
+```text
+Actions > integrate-prism-insight > 가장 최근 실패한 run 클릭
+```
+
+왼쪽 또는 가운데의 `integrate` job을 클릭한 뒤, 빨간색으로 실패한 step 이름을 확인합니다.
+
+자주 중요한 step 이름:
+
+```text
+Import upstream under prism-insight
+Patch PRISM-INSIGHT adapters
+Verify patched integration
+Create or update draft PR
+```
+
+나에게 전달할 때는 실패한 step 이름과 그 아래 빨간 로그 20-40줄만 보내면 됩니다.
+
+예:
+
+```text
+실패 step: Verify patched integration
+로그:
+... pytest 또는 RuntimeError 부분 ...
+```
+
+## 실패 유형별 의미
+
+`Import upstream under prism-insight` 실패:
+
+- 원본 저장소 clone 실패
+- GitHub 네트워크 또는 upstream branch 문제
+- `prism-insight/` 가져오기 단계 문제
+
+`Patch PRISM-INSIGHT adapters` 실패:
+
+- 원본 PRISM 파일 구조가 바뀌어 기존 anchor를 못 찾은 경우
+- 이 경우 `scripts/patch_prism_adapters.py`를 원본 최신 구조에 맞게 수정해야 합니다.
+
+`Verify patched integration` 실패:
+
+- 테스트 실패
+- `check_integration.py` 마커 검사 실패
+- adapter patch가 idempotent하지 않음
+- runtime preflight 설치 검사 실패
+
+`Create or update draft PR` 실패:
+
+- GitHub PR 생성 권한 문제
+- `gh pr create` 또는 `gh pr edit` 문제
+- 브랜치는 생겼지만 PR만 안 생겼을 수 있습니다.
 
 ## live 전환 금지 조건
 
