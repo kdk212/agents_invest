@@ -29,18 +29,22 @@ json_field() {
 }
 
 python_json_field() {
-  local command="$1"
+  local command_text="$1"
   local field="$2"
   cd "$APP_DIR"
-  PYTHONPATH="$APP_DIR:$APP_DIR/prism-insight" "$APP_DIR/.venv/bin/python" - <<PY 2>/dev/null || true
-import json, subprocess, sys
-cmd = ${command!r}
-field = ${field!r}
+  OP_STATUS_CMD="$command_text" OP_STATUS_FIELD="$field" \
+    PYTHONPATH="$APP_DIR:$APP_DIR/prism-insight" "$APP_DIR/.venv/bin/python" - <<'PY' 2>/dev/null || true
+import json
+import os
+import subprocess
+
+cmd = os.environ.get("OP_STATUS_CMD", "")
+field = os.environ.get("OP_STATUS_FIELD", "")
 try:
     out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT, timeout=45)
     data = json.loads(out)
     value = data
-    for part in field.split('.'):
+    for part in field.split("."):
         if not part:
             continue
         if isinstance(value, dict):
