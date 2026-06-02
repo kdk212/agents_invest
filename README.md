@@ -18,6 +18,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 ## 현재 포함된 모듈
 
 - `optimization/profit_scoring.py`: 후보 종목 점수화 엔진
+- `optimization/performance_feedback.py`: paper/live 성과를 트리거, 섹터, 종목 단위 보조 점수로 변환하는 피드백 엔진
 - `optimization/risk_governor.py`: 매수 직전 리스크 게이트
 - `optimization/paper_validator.py`: 페이퍼트레이딩 실계좌 전환 검증
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
@@ -25,6 +26,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `runtime/ssm.py`: `/agents-invest/*` 운영 파라미터를 읽어 킬스위치와 리스크 한도에 반영
 - `runtime/secrets.py`: OpenAI/KIS/Telegram SecureString을 표준 환경변수로 주입
 - `scripts/`: 원본 병합, 자동 패치, 비밀값 입력, 통합 상태 점검 보조 스크립트
+- `db/`: 후보 성과 추적과 트리거/섹터/종목별 요약 뷰
 - `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
 - `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 비밀값 입력, 라이선스, 병합 플레이북
 
@@ -94,6 +96,20 @@ python -m runtime.preflight --json
 - `KILL_SWITCH=false`
 
 AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switch`와 주요 리스크 한도가 환경값 위에 덮어써지고, SecureString 비밀값은 `OPENAI_API_KEY`, `KIS_APP_KEY`, `TELEGRAM_BOT_TOKEN` 같은 표준 환경변수로 주입됩니다. `live` 모드에서는 SSM 로딩 실패도 시작 차단 사유입니다.
+
+## 성과 피드백 루프
+
+`db/candidate_performance_tracker.sql`에 paper/live 후보 성과를 쌓으면 `PerformanceFeedbackEngine`이 과거 트리거, 섹터, 종목 성과를 다음 후보의 보조 점수로 변환합니다.
+
+```text
+candidate_performance_tracker
+  -> PerformanceFeedbackEngine
+  -> historical_trigger_edge / historical_sector_edge / historical_ticker_edge
+  -> ProfitScoringEngine
+  -> RiskGovernor
+```
+
+이 피드백은 원본 PRISM 에이전트를 대체하지 않고, 후보 정렬과 매수 직전 리스크 판단에 추가 근거로만 사용합니다.
 
 ## 원본 가져오기와 자동 연결
 
