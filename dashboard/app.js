@@ -68,6 +68,10 @@ async function loadJsonOrNull(url) {
   }
 }
 
+async function loadRuntimeStatus() {
+  return await loadJsonOrNull("./runtime_status.json");
+}
+
 async function loadLatestResults() {
   const entries = await Promise.all(
     Object.entries(resultFiles).map(async ([mode, url]) => [mode, await loadJsonOrNull(url)])
@@ -236,6 +240,20 @@ function drawStatusCanvas(status) {
   });
 }
 
+function runtimeCheck(runtime) {
+  if (!runtime) {
+    return { title: "서비스 상태", detail: "runtime_status.json 대기", state: "warning" };
+  }
+  const status = runtime.status || "unknown";
+  const updated = runtime.updated_at || "-";
+  const missing = Array.isArray(runtime.missing_secret_names) ? runtime.missing_secret_names.length : 0;
+  const state = status.includes("failed") || status.includes("blocked") ? "blocked" : runtime.runtime_ready ? "done" : "warning";
+  const detail = missing
+    ? `${status} · 비밀값 ${missing}개 대기 · ${updated}`
+    : `${status} · ${updated}`;
+  return { title: "서비스 상태", detail, state };
+}
+
 function render(status) {
   setText("tradingMode", status.trading_mode || "-");
   setText("modeDetail", status.mode_detail || "-");
@@ -245,12 +263,13 @@ function render(status) {
   setText("killSwitchDetail", status.kill_switch_detail || "-");
   setText("validationState", status.validation_state || "-");
   setText("validationDetail", status.validation_detail || "-");
-  setText("updatedAt", status.updated_at || "-");
-  setText("overallText", status.overall === "ok" ? "운영 가능 상태" : status.overall === "blocked" ? "차단 상태" : "확인 필요");
+  setText("updatedAt", status.runtime?.updated_at || status.updated_at || "-");
+  const runtimeText = status.runtime?.status ? `서비스 ${status.runtime.status}` : null;
+  setText("overallText", runtimeText || (status.overall === "ok" ? "운영 가능 상태" : status.overall === "blocked" ? "차단 상태" : "확인 필요"));
   const pulse = document.getElementById("overallPulse");
   if (pulse) pulse.className = `pulse ${status.overall || "warning"}`;
   renderList("timeline", status.timeline);
-  renderList("safetyChecks", status.safety_checks);
+  renderList("safetyChecks", [runtimeCheck(status.runtime), ...(status.safety_checks || [])]);
   renderNextActions(status.next_actions);
   renderFeedback(status.feedback);
   renderLatestCandidates();
@@ -283,7 +302,7 @@ function escapeHtml(value) {
 }
 
 wireResultTabs();
-Promise.all([loadStatus(), loadLatestResults()]).then(([status, results]) => {
+Promise.all([loadStatus(), loadRuntimeStatus(), loadLatestResults()]).then(([status, runtime, results]) => {
   latestResults = results;
-  render(status);
+  render({ ...status, runtime });
 });
