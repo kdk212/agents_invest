@@ -11,7 +11,20 @@
 - 원본 라이선스: AGPL-3.0
 - 기본 운영 모드: paper
 
-## 빠른 자동 병합과 패치
+## GitHub Actions로 병합
+
+로컬 Git, Windows 경로, 인증서 문제가 있으면 GitHub Actions 수동 워크플로를 사용한다.
+
+1. GitHub 저장소의 `Actions` 탭으로 이동한다.
+2. `integrate-prism-insight` 워크플로를 선택한다.
+3. `Run workflow`를 누른다.
+4. 기본값 그대로 실행하면 `integrate-prism-insight` 브랜치가 생성 또는 업데이트된다.
+5. 워크플로는 원본 import, 어댑터 자동 패치, 테스트, 통합 점검, 프리플라이트를 실행한다.
+6. 결과 브랜치를 확인한 뒤 PR 또는 main 병합을 진행한다.
+
+이 방식은 `main`을 직접 수정하지 않는다.
+
+## 로컬 빠른 자동 병합과 패치
 
 가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져온다. 그 다음 패치 스크립트가 `trigger_batch.py`와 `stock_tracking_agent.py`에 보완 어댑터를 연결한다.
 
@@ -223,7 +236,7 @@ live 모드는 다음 조건이 모두 충족되어야 한다.
 
 ## 권장 다음 작업
 
-1. 방법 A로 원본을 `prism-insight/` 하위 폴더에 가져온다.
+1. GitHub Actions 또는 방법 A로 원본을 `prism-insight/` 하위 폴더에 가져온다.
 2. `python scripts/patch_prism_adapters.py`로 자동 연결한다.
 3. 원본 실행을 먼저 paper/demo 모드로 확인한다.
 4. 페이퍼트레이딩 후보 성과 추적을 켠다.
