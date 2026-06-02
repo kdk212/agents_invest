@@ -1,0 +1,66 @@
+{
+  "updated_at": "초기 상태",
+  "overall": "warning",
+  "trading_mode": "paper",
+  "mode_detail": "초기 운영은 paper 모드 권장",
+  "integration_state": "대기",
+  "integration_detail": "GitHub Actions에서 integrate-prism-insight 실행 필요",
+  "kill_switch": "확인 필요",
+  "kill_switch_detail": "/agents-invest/kill-switch 확인",
+  "validation_state": "미검증",
+  "validation_detail": "PaperTradingValidator 통과 전 live 금지",
+  "timeline": [
+    {
+      "title": "보완 모듈 준비",
+      "detail": "수익 점수화, 리스크 차단, 성과 피드백 코드 준비",
+      "state": "done"
+    },
+    {
+      "title": "PRISM 원본 통합",
+      "detail": "Actions에서 integrate-prism-insight 실행 필요",
+      "state": "warning"
+    },
+    {
+      "title": "paper 검증",
+      "detail": "최소 거래 수와 검증 기준 충족 필요",
+      "state": "warning"
+    },
+    {
+      "title": "AWS 24시간 운영",
+      "detail": "EC2 또는 GitHub Pages로 PC 없이 운영 가능",
+      "state": "running"
+    },
+    {
+      "title": "live 전환",
+      "detail": "모든 안전 조건 통과 전까지 금지",
+      "state": "blocked"
+    }
+  ],
+  "safety_checks": [
+    {
+      "title": "Kill Switch",
+      "detail": "SSM에서 즉시 신규 실행 차단 가능",
+      "state": "warning"
+    },
+    {
+      "title": "RiskGovernor",
+      "detail": "주문 직전 포지션/손실/시장 리스크 차단",
+      "state": "done"
+    },
+    {
+      "title": "비밀값",
+      "detail": "OpenAI/KIS/Telegram SecureString 저장 필요",
+      "state": "warning"
+    },
+    {
+      "title": "Telegram",
+      "detail": "알림 수신 확인 필요",
+      "state": "warning"
+    }
+  ],
+  "feedback": {
+    "trigger_edge": "대기",
+    "sector_edge": "대기",
+    "ticker_edge": "대기"
+  }
+}
