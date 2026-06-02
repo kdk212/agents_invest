@@ -12,6 +12,7 @@
 
 ```text
 Trigger Batch
+  -> PerformanceFeedbackEngine
   -> ProfitScoringEngine
   -> Analysis Agents
   -> Strategy / Buy Specialist
@@ -27,11 +28,11 @@ Trigger Batch
 |---|---|---|---|---|
 | 거시경제 팀 | 시장 국면, 섹터 로테이션, 리스크 이벤트 | 시장 체제 판단과 섹터 리더 분석 | 시장 국면을 `ProfitScoringEngine`과 `RiskGovernor`의 가중치/차단 조건에 반영 | `optimization/profit_scoring.py`, `optimization/risk_governor.py` |
 | 분석 팀 | 기술적, 재무, 산업, 뉴스, 시장 분석 | 보고서 생성과 CAN SLIM 근거 생산 | 분석 결과를 수익 기대값 입력값으로 정규화하고, 과열/유동성/손실폭 페널티 추가 | `optimization/adapters.py` |
-| 전략 팀 | 투자 전략 수립 | 기존 전략 판단 | `profit_score`, `expected_value`, `risk_penalty`, 과거 트리거 승률을 추가 판단 근거로 제공 | `scripts/patch_prism_adapters.py` -> `trading_agents.py` |
+| 전략 팀 | 투자 전략 수립 | 기존 전략 판단 | `profit_score`, `expected_value`, `risk_penalty`, 과거 트리거/섹터/종목 성과를 추가 판단 근거로 제공 | `optimization/performance_feedback.py`, `scripts/patch_prism_adapters.py` -> `trading_agents.py` |
 | 커뮤니케이션 팀 | 요약, 품질 평가, 번역 | 리포트/메시지 품질 유지 | 실계좌 전환 전 검증 상태, 킬스위치, 리스크 차단 사유를 로그/알림에 포함할 수 있도록 구조화 | `runtime/preflight.py`, `agents_invest_runner.py` |
 | 매매 팀 - Buy Specialist | 진입/미진입, 목표가, 손절가, 포트폴리오 문맥 | CAN SLIM 기반 진입 판단 | JSON 출력에 `profit_score`, `expected_value`, `risk_governor_context`, `no_entry_reasons`, `risk_controls`를 요구 | `patch_trading_agents()` |
 | 매매 팀 - Sell Specialist | 보유/전량매도, 손절, trailing stop | 원본 매도 원칙 유지 | RiskGovernor와 일일 손실 한도, 킬스위치를 상위 안전장치로 둠 | `runtime/safety.py`, 향후 sell adapter |
-| 매매 팀 - Journal | 매매 기록과 피드백 루프 | 원본 journal/intuition 활용 | 매수하지 않은 후보의 후행 성과까지 기록할 수 있는 스키마 추가 | `db/candidate_performance_tracker.sql` |
+| 매매 팀 - Journal | 매매 기록과 피드백 루프 | 원본 journal/intuition 활용 | 매수하지 않은 후보의 후행 성과까지 기록하고 `PerformanceFeedbackEngine`으로 다음 후보 점수화에 반영 | `db/candidate_performance_tracker.sql`, `optimization/performance_feedback.py` |
 | 상담/텔레그램 팀 | 사용자 상호작용과 알림 | 원본 Telegram 흐름 유지 | AWS Kill Switch, preflight 실패, RiskGovernor 차단 사유를 알림 대상으로 확장 가능 | `docs/AWS_24H_OPERATION_ko.md` |
 
 ## 자동 패치 대상
@@ -66,7 +67,7 @@ python scripts/patch_prism_adapters.py --check
 
 3. Systems Manager Parameter Store
    - `deploy/aws/put_default_parameters.sh`로 기본값 생성
-   - SecureString의 `CHANGE_ME`를 실제 값으로 교체
+   - OpenAI/KIS/Telegram SecureString은 `scripts/configure_runtime_secrets.py`로 입력
    - 반드시 확인할 값:
 
 ```text
@@ -101,5 +102,6 @@ Parameter Store 기준으로는 다음이 충족되어야 합니다.
 - GitHub Actions에서 `integrate-prism-insight` 워크플로를 실행해 원본을 실제 하위 폴더로 병합
 - 자동 패치가 최신 원본에 정상 적용되는지 CI로 확인
 - 페이퍼트레이딩 최소 표본을 쌓고 `PaperTradingValidator`로 검증
+- `candidate_performance_tracker`에 성과를 쌓아 `PerformanceFeedbackEngine` 입력으로 사용
 - Telegram 알림과 CloudWatch 로그 연결
 - 실계좌 주문은 위 조건을 모두 만족한 뒤 검토
