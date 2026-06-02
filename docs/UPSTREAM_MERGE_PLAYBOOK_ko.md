@@ -26,7 +26,13 @@
 
 ## 로컬 빠른 자동 병합과 패치
 
-가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져온다. 그 다음 패치 스크립트가 `trigger_batch.py`와 `stock_tracking_agent.py`에 보완 어댑터를 연결한다.
+가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져온다. 그 다음 패치 스크립트가 세 파일에 보완을 연결한다.
+
+자동 패치 대상:
+
+- `prism-insight/trigger_batch.py`
+- `prism-insight/stock_tracking_agent.py`
+- `prism-insight/cores/agents/trading_agents.py`
 
 Windows PowerShell:
 
@@ -152,7 +158,7 @@ python scripts/patch_prism_adapters.py
 대상 원본 파일:
 
 ```text
-trigger_batch.py
+prism-insight/trigger_batch.py
 ```
 
 연결 함수:
@@ -171,12 +177,27 @@ scored_df = enrich_trigger_dataframe_with_profit_scores(
 )
 ```
 
-### 6.2 매수 전 리스크 차단 연결
+### 6.2 Buy Specialist 프롬프트 보완
 
 대상 원본 파일:
 
 ```text
-stock_tracking_agent.py
+prism-insight/cores/agents/trading_agents.py
+```
+
+`JSON Response Format` / `JSON 응답 형식` 바로 앞에 Profit Optimization Addendum을 삽입한다. 자동 패치가 삽입하는 핵심 내용은 다음이다.
+
+- `profit_score`, `expected_value`, `risk_penalty`는 CAN SLIM을 대체하지 않고 보조 근거로 사용
+- `profit_score < 55`, `expected_value <= 0`, `risk_penalty >= 25`는 반드시 rationale 또는 rejection_reason에서 설명
+- 과거 트리거 승률이 낮으면 추가 확인 1개 요구
+- 출력 JSON에 `risk_governor_context`, `no_entry_reasons`, `risk_controls` 포함 권장
+
+### 6.3 매수 전 리스크 차단 연결
+
+대상 원본 파일:
+
+```text
+prism-insight/stock_tracking_agent.py
 ```
 
 연결 함수:
@@ -187,7 +208,7 @@ from optimization import apply_risk_governor_to_scenario
 
 `process_reports()`에서 `analysis_result.get("decision") == "Enter"` 매수 실행 직전 RiskGovernor를 호출한다. 자세한 수동 패치 예시는 [어댑터 연결 가이드](ADAPTER_WIRING_GUIDE_ko.md)를 참고한다.
 
-### 6.3 후보 성과 추적 DB 연결
+### 6.4 후보 성과 추적 DB 연결
 
 스키마:
 
@@ -218,6 +239,8 @@ python scripts/check_integration.py
 python scripts/patch_prism_adapters.py --check
 ```
 
+`check_integration.py`는 원본 파일 존재뿐 아니라 세 파일의 보강 패치 마커까지 확인한다.
+
 ## 8. AWS 배포 전 점검
 
 ```powershell
@@ -233,6 +256,7 @@ live 모드는 다음 조건이 모두 충족되어야 한다.
 - `TRADING_MODE=live`
 - `PAPER_VALIDATION_APPROVED=true`
 - `KILL_SWITCH=false`
+- `ENABLE_SSM_SETTINGS=true`
 
 ## 권장 다음 작업
 
