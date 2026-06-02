@@ -3,6 +3,7 @@
 Usage:
     python scripts/check_integration.py
     python scripts/check_integration.py --json
+    python scripts/check_integration.py --allow-missing-upstream
 """
 
 from __future__ import annotations
@@ -48,6 +49,11 @@ LIKELY_AGENT_PATHS = [
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check PRISM-INSIGHT integration status")
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    parser.add_argument(
+        "--allow-missing-upstream",
+        action="store_true",
+        help="return success when local optimization modules are ready but prism-insight/ has not been imported yet",
+    )
     args = parser.parse_args(argv)
 
     result = build_report()
@@ -56,7 +62,17 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print_report(result)
 
-    return 0 if result["fully_wired"] else 2
+    return 0 if is_success(result, allow_missing_upstream=args.allow_missing_upstream) else 2
+
+
+def is_success(result: dict[str, object], *, allow_missing_upstream: bool = False) -> bool:
+    if result["fully_wired"]:
+        return True
+    return bool(
+        allow_missing_upstream
+        and result["optimization_modules_present"]
+        and not result["upstream_present"]
+    )
 
 
 def build_report() -> dict[str, object]:
