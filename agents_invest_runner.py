@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-try:  # Python 3.9 on Amazon Linux has zoneinfo.
+try:
     from zoneinfo import ZoneInfo
 except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore[assignment]
@@ -73,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         help="directory where runtime JSON artifacts are written",
     )
     args = parser.parse_args(argv)
+    dashboard_dir = Path(args.dashboard_dir).resolve()
+    dashboard_dir.mkdir(parents=True, exist_ok=True)
 
     settings = load_runtime_settings()
     secret_result = _load_secrets_for_settings(settings)
@@ -85,23 +87,38 @@ def main(argv: list[str] | None = None) -> int:
         secret_ok=secret_result.ok,
         allow_missing_secrets=args.allow_missing_secrets or service_loop,
     )
-    print(
-        json.dumps(
-            {
-                "settings": _public_settings(settings),
-                "secrets": _public_secret_result(secret_result),
-                "safety": asdict(safety),
-                "prism": prism_status,
-                "runtime_ready": runtime_ready,
-                "install_ready": install_ready,
-                "missing_secrets_allowed": bool(args.allow_missing_secrets or service_loop),
-            },
-            ensure_ascii=False,
-        ),
-        flush=True,
+    startup_state = {
+        "settings": _public_settings(settings),
+        "secrets": _public_secret_result(secret_result),
+        "safety": asdict(safety),
+        "prism": prism_status,
+        "runtime_ready": runtime_ready,
+        "install_ready": install_ready,
+        "missing_secrets_allowed": bool(args.allow_missing_secrets or service_loop),
+    }
+    print(json.dumps(startup_state, ensure_ascii=False), flush=True)
+    _write_runtime_status(
+        dashboard_dir,
+        status="startup_checked",
+        settings=settings,
+        secret_result=secret_result,
+        safety=safety,
+        prism=prism_status,
+        runtime_ready=runtime_ready,
+        install_ready=install_ready,
     )
 
     if not install_ready:
+        _write_runtime_status(
+            dashboard_dir,
+            status="startup_blocked",
+            settings=settings,
+            secret_result=secret_result,
+            safety=safety,
+            prism=prism_status,
+            runtime_ready=runtime_ready,
+            install_ready=install_ready,
+        )
         return 2
 
     if args.once:
@@ -109,40 +126,84 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.run_batch_once:
         if not runtime_ready:
+            _write_runtime_status(
+                dashboard_dir,
+                status="waiting_for_runtime_secrets",
+                settings=settings,
+                secret_result=secret_result,
+                safety=safety,
+                prism=prism_status,
+                runtime_ready=False,
+                install_ready=install_ready,
+            )
             _print_runtime_waiting(settings=settings, secret_result=secret_result, safety=safety)
             return 2
         return _run_cycle(args, settings=settings, secret_result=secret_result, safety=safety)
-
-    dashboard_dir = Path(args.dashboard_dir).resolve()
-    dashboard_dir.mkdir(parents=True, exist_ok=True)
 
     while True:
         settings = load_runtime_settings()
         secret_result = _load_secrets_for_settings(settings)
         safety = evaluate_startup_safety(settings)
+        prism_status = _prism_status(Path(args.prism_dir))
         if not safety.allowed:
-            print(
-                json.dumps(
-                    {
-                        "status": "runtime_safety_blocked",
-                        "settings": _public_settings(settings),
-                        "secrets": _public_secret_result(secret_result),
-                        "safety": asdict(safety),
-                    },
-                    ensure_ascii=False,
-                ),
-                flush=True,
+            blocked = {
+                "status": "runtime_safety_blocked",
+                "settings": _public_settings(settings),
+                "secrets": _public_secret_result(secret_result),
+                "safety": asdict(safety),
+            }
+            print(json.dumps(blocked, ensure_ascii=False), flush=True)
+            _write_runtime_status(
+                dashboard_dir,
+                status="runtime_safety_blocked",
+                settings=settings,
+                secret_result=secret_result,
+                safety=safety,
+                prism=prism_status,
+                runtime_ready=False,
+                install_ready=False,
             )
             return 2
 
         if not secret_result.ok:
             _refresh_dashboard_status(dashboard_dir)
+            _write_runtime_status(
+                dashboard_dir,
+                status="waiting_for_runtime_secrets",
+                settings=settings,
+                secret_result=secret_result,
+                safety=safety,
+                prism=prism_status,
+                runtime_ready=False,
+                install_ready=True,
+            )
             _print_runtime_waiting(settings=settings, secret_result=secret_result, safety=safety)
             time.sleep(max(60, args.interval_seconds))
             continue
 
+        _write_runtime_status(
+            dashboard_dir,
+            status="running_prism_batch",
+            settings=settings,
+            secret_result=secret_result,
+            safety=safety,
+            prism=prism_status,
+            runtime_ready=True,
+            install_ready=True,
+        )
         result = _run_cycle(args, settings=settings, secret_result=secret_result, safety=safety)
         if result != 0:
+            _write_runtime_status(
+                dashboard_dir,
+                status="prism_batch_cycle_failed",
+                settings=settings,
+                secret_result=secret_result,
+                safety=safety,
+                prism=prism_status,
+                runtime_ready=True,
+                install_ready=True,
+                last_exit_code=result,
+            )
             return result
         time.sleep(max(60, args.interval_seconds))
 
@@ -152,18 +213,23 @@ def _run_cycle(args, *, settings, secret_result, safety) -> int:
     dashboard_dir = Path(args.dashboard_dir).resolve()
     status = _prism_status(prism_dir)
     if not status["ready"]:
-        print(
-            json.dumps(
-                {
-                    "status": "waiting_for_prism_insight_integration",
-                    "prism": status,
-                    "mode": settings.trading_mode,
-                    "settings_source": settings.settings_source,
-                    "secret_source": secret_result.source,
-                },
-                ensure_ascii=False,
-            ),
-            flush=True,
+        payload = {
+            "status": "waiting_for_prism_insight_integration",
+            "prism": status,
+            "mode": settings.trading_mode,
+            "settings_source": settings.settings_source,
+            "secret_source": secret_result.source,
+        }
+        print(json.dumps(payload, ensure_ascii=False), flush=True)
+        _write_runtime_status(
+            dashboard_dir,
+            status="waiting_for_prism_insight_integration",
+            settings=settings,
+            secret_result=secret_result,
+            safety=safety,
+            prism=status,
+            runtime_ready=False,
+            install_ready=True,
         )
         return 0
 
@@ -188,19 +254,25 @@ def _run_cycle(args, *, settings, secret_result, safety) -> int:
         settings=settings,
         dashboard_url=os.getenv("DASHBOARD_PUBLIC_URL", "http://13.55.135.136/"),
     )
-    print(
-        json.dumps(
-            {
-                "status": "prism_batch_cycle_complete" if ok else "prism_batch_cycle_failed",
-                "mode": settings.trading_mode,
-                "safety": asdict(safety),
-                "history": history_results,
-                "telegram": telegram_result,
-                "results": cycle_results,
-            },
-            ensure_ascii=False,
-        ),
-        flush=True,
+    payload = {
+        "status": "prism_batch_cycle_complete" if ok else "prism_batch_cycle_failed",
+        "mode": settings.trading_mode,
+        "safety": asdict(safety),
+        "history": history_results,
+        "telegram": telegram_result,
+        "results": cycle_results,
+    }
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
+    _write_runtime_status(
+        dashboard_dir,
+        status=str(payload["status"]),
+        settings=settings,
+        secret_result=secret_result,
+        safety=safety,
+        prism=status,
+        runtime_ready=True,
+        install_ready=True,
+        last_result=payload,
     )
     return 0 if ok else 2
 
@@ -354,6 +426,54 @@ def _refresh_dashboard_status(dashboard_dir: Path) -> None:
         stderr=subprocess.DEVNULL,
         check=False,
     )
+
+
+def _write_runtime_status(
+    dashboard_dir: Path,
+    *,
+    status: str,
+    settings,
+    secret_result,
+    safety,
+    prism: dict[str, object] | None = None,
+    runtime_ready: bool = False,
+    install_ready: bool = False,
+    last_result: dict[str, object] | None = None,
+    last_exit_code: int | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "updated_at": _now_seoul().isoformat(timespec="seconds"),
+        "status": status,
+        "pid": os.getpid(),
+        "trading_mode": settings.trading_mode,
+        "runtime_ready": runtime_ready,
+        "install_ready": install_ready,
+        "safety_allowed": safety.allowed,
+        "safety_reasons": list(safety.reasons),
+        "safety_warnings": list(safety.warnings),
+        "secret_ok": secret_result.ok,
+        "loaded_secret_count": len(secret_result.loaded_env_names),
+        "missing_secret_names": list(secret_result.missing_env_names),
+        "prism": prism or {},
+    }
+    if last_result is not None:
+        payload["last_result"] = last_result
+    if last_exit_code is not None:
+        payload["last_exit_code"] = last_exit_code
+    try:
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "runtime_status.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"status": "runtime_status_write_failed", "reason": f"{exc.__class__.__name__}: {exc}"},
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
 
 
 def _print_runtime_waiting(*, settings, secret_result, safety) -> None:
