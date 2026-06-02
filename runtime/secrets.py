@@ -13,6 +13,8 @@ SECRET_PARAMETER_TO_ENV = {
     "kis/account-no": "KIS_ACCOUNT_NO",
     "telegram/bot-token": "TELEGRAM_BOT_TOKEN",
     "telegram/chat-id": "TELEGRAM_CHAT_ID",
+    "krx/id": "KRX_ID",
+    "krx/pw": "KRX_PW",
 }
 
 
