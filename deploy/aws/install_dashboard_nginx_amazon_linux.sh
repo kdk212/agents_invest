@@ -49,6 +49,11 @@ fi
 step "Install nginx"
 "$PKG" install "${PKG_INSTALL_ARGS[@]}" nginx
 
+step "Prepare dashboard permissions"
+mkdir -p "$APP_DIR/dashboard"
+touch "$APP_DIR/dashboard/status.json"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR/dashboard"
+
 step "Export initial dashboard status"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/export_dashboard_status.py --output dashboard/status.json"
 
