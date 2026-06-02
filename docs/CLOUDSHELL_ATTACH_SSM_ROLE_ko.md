@@ -17,71 +17,24 @@ AWS 콘솔 오른쪽 위의 CloudShell 아이콘을 누릅니다.
 
 CloudShell이 열리면 아래 명령을 그대로 붙여넣습니다.
 
-## 2. IAM Role 만들고 EC2에 붙이기
+## 2. 스크립트로 IAM Role 만들고 EC2에 붙이기
+
+아래 명령은 저장소의 `deploy/aws/cloudshell_attach_ssm_role.sh`를 내려받아 실행합니다.
 
 ```bash
-REGION="ap-southeast-2"
-INSTANCE_ID="i-08bdbe63b2db7880f"
-ROLE_NAME="agents-invest-ec2-runtime-role"
-PROFILE_NAME="agents-invest-ec2-instance-profile"
-
-cat > /tmp/agents-invest-ec2-trust.json <<'EOF'
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ec2.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-
-aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1 || \
-  aws iam create-role \
-    --role-name "$ROLE_NAME" \
-    --assume-role-policy-document file:///tmp/agents-invest-ec2-trust.json
-
-aws iam attach-role-policy \
-  --role-name "$ROLE_NAME" \
-  --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-
-aws iam get-instance-profile --instance-profile-name "$PROFILE_NAME" >/dev/null 2>&1 || \
-  aws iam create-instance-profile --instance-profile-name "$PROFILE_NAME"
-
-aws iam add-role-to-instance-profile \
-  --instance-profile-name "$PROFILE_NAME" \
-  --role-name "$ROLE_NAME" 2>/dev/null || true
-
-sleep 10
-
-CURRENT_ASSOCIATION_ID="$(aws ec2 describe-iam-instance-profile-associations \
-  --region "$REGION" \
-  --filters "Name=instance-id,Values=$INSTANCE_ID" "Name=state,Values=associating,associated" \
-  --query 'IamInstanceProfileAssociations[0].AssociationId' \
-  --output text)"
-
-if [ "$CURRENT_ASSOCIATION_ID" = "None" ] || [ -z "$CURRENT_ASSOCIATION_ID" ]; then
-  aws ec2 associate-iam-instance-profile \
-    --region "$REGION" \
-    --instance-id "$INSTANCE_ID" \
-    --iam-instance-profile Name="$PROFILE_NAME"
-else
-  aws ec2 replace-iam-instance-profile-association \
-    --region "$REGION" \
-    --association-id "$CURRENT_ASSOCIATION_ID" \
-    --iam-instance-profile Name="$PROFILE_NAME"
-fi
-
-aws ec2 describe-instances \
-  --region "$REGION" \
-  --instance-ids "$INSTANCE_ID" \
-  --query 'Reservations[0].Instances[0].IamInstanceProfile' \
-  --output table
+curl -fsSL https://raw.githubusercontent.com/kdk212/agents_invest/main/deploy/aws/cloudshell_attach_ssm_role.sh -o /tmp/cloudshell_attach_ssm_role.sh
+bash /tmp/cloudshell_attach_ssm_role.sh
 ```
+
+스크립트가 하는 일:
+
+- EC2용 IAM Role 생성
+- `AmazonSSMManagedInstanceCore` 연결
+- `/agents-invest/*` Parameter Store 읽기 권한 추가
+- SecureString 복호화를 위한 KMS 권한 추가
+- CloudWatch Logs 쓰기 권한 추가
+- Instance Profile 생성
+- EC2 `i-08bdbe63b2db7880f`에 Instance Profile 연결 또는 교체
 
 마지막에 표가 나오고 `Arn` 또는 `Id`가 보이면 IAM instance profile이 붙은 것입니다.
 
@@ -108,7 +61,28 @@ Ping status: Online
 Session Manager connection status: Connected
 ```
 
-## 4. 그래도 Offline이면
+## 4. 다른 인스턴스에 쓸 때
+
+기본값은 현재 인스턴스에 맞춰져 있습니다.
+
+```text
+REGION=ap-southeast-2
+INSTANCE_ID=i-08bdbe63b2db7880f
+ROLE_NAME=agents-invest-ec2-runtime-role
+PROFILE_NAME=agents-invest-ec2-instance-profile
+```
+
+다른 인스턴스에 쓰려면 실행 전에 값을 바꿉니다.
+
+```bash
+REGION="ap-southeast-2" \
+INSTANCE_ID="i-xxxxxxxxxxxxxxxxx" \
+ROLE_NAME="agents-invest-ec2-runtime-role" \
+PROFILE_NAME="agents-invest-ec2-instance-profile" \
+bash /tmp/cloudshell_attach_ssm_role.sh
+```
+
+## 5. 그래도 Offline이면
 
 IAM Role 문제는 해결됐을 가능성이 높고, 다음은 네트워크 문제일 수 있습니다.
 
@@ -129,7 +103,7 @@ ec2messages
 
 처음 운영에서는 public subnet + outbound 허용 구성이 가장 쉽습니다.
 
-## 5. Session Manager가 Online 된 뒤
+## 6. Session Manager가 Online 된 뒤
 
 EC2에 접속해서 아래를 실행합니다.
 
