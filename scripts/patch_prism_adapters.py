@@ -38,6 +38,81 @@ TRIGGER_SCORE_COLUMN_OLD = '    score_column = "final_score" if use_hybrid and t
 TRIGGER_SCORE_COLUMN_NEW = '    score_column = "profit_score" if use_hybrid and trade_date else "composite_score"'
 
 STOCK_IMPORT = "from optimization import apply_risk_governor_to_scenario"
+STOCK_TRIGGER_MAP_MARKER = "'profit_score': stock.get('profit_score', 0)"
+STOCK_TRIGGER_MAP_OLD = """                            self.trigger_info_map[ticker] = {
+                                'trigger_type': trigger_type,
+                                'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
+                                'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
+                            }
+"""
+STOCK_TRIGGER_MAP_NEW = """                            self.trigger_info_map[ticker] = {
+                                'trigger_type': trigger_type,
+                                'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
+                                'risk_reward_ratio': stock.get('risk_reward_ratio', 0),
+                                'profit_score': stock.get('profit_score', 0),
+                                'expected_value': stock.get('expected_value', 0),
+                                'risk_penalty': stock.get('risk_penalty', 0),
+                                'profit_decision_hint': stock.get('profit_decision_hint', ''),
+                                'profit_score_reasons': stock.get('profit_score_reasons', ''),
+                            }
+"""
+STOCK_TRIGGER_SECTION_MARKER = "### agents_invest Profit Context"
+STOCK_TRIGGER_SECTION_ANCHOR = """            # Prepare prompt based on language
+            if self.language == "ko":
+"""
+STOCK_TRIGGER_SECTION_PATCH = """            trigger_profit_info = getattr(self, "trigger_info_map", {}).get(ticker, {}) if ticker else {}
+            if trigger_profit_info and any(
+                trigger_profit_info.get(key) not in (None, "", 0)
+                for key in ("profit_score", "expected_value", "risk_penalty", "profit_decision_hint", "profit_score_reasons")
+            ):
+                trigger_info_section += f"""
+        ### agents_invest Profit Context
+        - profit_score: {trigger_profit_info.get('profit_score', 0)}
+        - expected_value: {trigger_profit_info.get('expected_value', 0)}
+        - risk_penalty: {trigger_profit_info.get('risk_penalty', 0)}
+        - profit_decision_hint: {trigger_profit_info.get('profit_decision_hint', '')}
+        - profit_score_reasons: {trigger_profit_info.get('profit_score_reasons', '')}
+        """
+
+"""
+STOCK_SCENARIO_MERGE_MARKER = "trigger_profit_context"
+STOCK_SCENARIO_MERGE_ANCHOR = """            scenario = await self._extract_trading_scenario(
+                report_content,
+                rank_change_msg,
+                ticker=ticker,
+                sector=None,
+                trigger_type=trigger_type,
+                trigger_mode=trigger_mode
+            )
+            raw_decision = scenario.get("decision", "No entry")
+"""
+STOCK_SCENARIO_MERGE_PATCH = """            scenario = await self._extract_trading_scenario(
+                report_content,
+                rank_change_msg,
+                ticker=ticker,
+                sector=None,
+                trigger_type=trigger_type,
+                trigger_mode=trigger_mode
+            )
+            trigger_profit_context = {
+                key: trigger_info.get(key)
+                for key in (
+                    "profit_score",
+                    "expected_value",
+                    "risk_penalty",
+                    "profit_decision_hint",
+                    "profit_score_reasons",
+                    "risk_reward_ratio",
+                )
+                if trigger_info.get(key) not in (None, "")
+            }
+            if trigger_profit_context:
+                for key, value in trigger_profit_context.items():
+                    if scenario.get(key) in (None, "", 0):
+                        scenario[key] = value
+                scenario["trigger_profit_context"] = trigger_profit_context
+            raw_decision = scenario.get("decision", "No entry")
+"""
 STOCK_ANCHOR = """                    if analysis_result.get(\"decision\") == \"Enter\":
                         buy_success = await self.buy_stock(ticker, company_name, current_price, scenario, rank_change_msg)
 """
@@ -60,6 +135,10 @@ STOCK_PATCH = """                    trigger_info = getattr(self, \"trigger_info
                         \"name\": company_name,
                         \"sector\": sector,
                         \"trigger_type\": trigger_info.get(\"trigger_type\", \"\"),
+                        \"profit_score\": trigger_info.get(\"profit_score\", scenario.get(\"profit_score\", 0)),
+                        \"expected_value\": trigger_info.get(\"expected_value\", scenario.get(\"expected_value\", 0)),
+                        \"risk_penalty\": trigger_info.get(\"risk_penalty\", scenario.get(\"risk_penalty\", 0)),
+                        \"risk_reward_ratio\": trigger_info.get(\"risk_reward_ratio\", scenario.get(\"risk_reward_ratio\", 0)),
                         \"historical_trigger_win_rate\": scenario.get(\"historical_trigger_win_rate\", 0),
                         \"historical_trigger_count\": scenario.get(\"historical_trigger_count\", 0),
                     }
@@ -179,6 +258,21 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
             1,
         )
 
+    if STOCK_TRIGGER_MAP_MARKER not in text:
+        if STOCK_TRIGGER_MAP_OLD not in text:
+            raise RuntimeError("stock_tracking_agent.py anchor not found for trigger profit context map")
+        text = text.replace(STOCK_TRIGGER_MAP_OLD, STOCK_TRIGGER_MAP_NEW, 1)
+
+    if STOCK_TRIGGER_SECTION_MARKER not in text:
+        if STOCK_TRIGGER_SECTION_ANCHOR not in text:
+            raise RuntimeError("stock_tracking_agent.py anchor not found for prompt profit context")
+        text = text.replace(STOCK_TRIGGER_SECTION_ANCHOR, STOCK_TRIGGER_SECTION_PATCH + STOCK_TRIGGER_SECTION_ANCHOR, 1)
+
+    if STOCK_SCENARIO_MERGE_MARKER not in text:
+        if STOCK_SCENARIO_MERGE_ANCHOR not in text:
+            raise RuntimeError("stock_tracking_agent.py anchor not found for scenario profit context merge")
+        text = text.replace(STOCK_SCENARIO_MERGE_ANCHOR, STOCK_SCENARIO_MERGE_PATCH, 1)
+
     if "apply_risk_governor_to_scenario(" not in text:
         if STOCK_ANCHOR not in text:
             raise RuntimeError("stock_tracking_agent.py anchor not found for risk-governor patch")
@@ -187,7 +281,7 @@ def patch_stock_tracking(check: bool = False) -> PatchResult:
     changed = text != original
     if changed and not check:
         STOCK_TRACKING.write_text(text, encoding="utf-8", newline="")
-    return PatchResult(str(STOCK_TRACKING), changed, "risk governor adapter wired" if changed else "already wired")
+    return PatchResult(str(STOCK_TRACKING), changed, "risk governor and profit context wired" if changed else "already wired")
 
 
 def patch_trading_agents(check: bool = False) -> PatchResult:
