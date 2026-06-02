@@ -56,7 +56,10 @@ jobs:
       - name: Commit adapter patch if needed
         run: |
           if [ -n "$(git status --short)" ]; then
-            git add prism-insight/trigger_batch.py prism-insight/stock_tracking_agent.py
+            git add \
+              prism-insight/trigger_batch.py \
+              prism-insight/stock_tracking_agent.py \
+              prism-insight/cores/agents/trading_agents.py
             git commit -m "feat: wire optimization adapters into prism-insight"
           else
             echo "No adapter patch changes to commit"
