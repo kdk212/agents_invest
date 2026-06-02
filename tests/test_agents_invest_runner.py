@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from agents_invest_runner import (
     _format_candidate_summary,
@@ -8,6 +9,7 @@ from agents_invest_runner import (
     _load_candidates,
     _prism_status,
     _selected_batch_modes,
+    _write_runtime_status,
 )
 
 
@@ -26,6 +28,36 @@ def test_service_install_ready_can_wait_for_missing_secrets():
     assert _install_ready(safety_allowed=True, secret_ok=False, allow_missing_secrets=True) is True
     assert _install_ready(safety_allowed=False, secret_ok=False, allow_missing_secrets=True) is False
     assert _install_ready(safety_allowed=True, secret_ok=False, allow_missing_secrets=False) is False
+
+
+def test_write_runtime_status_exports_public_heartbeat(tmp_path: Path):
+    dashboard_dir = tmp_path / "dashboard"
+    settings = SimpleNamespace(trading_mode="paper")
+    secret_result = SimpleNamespace(
+        ok=False,
+        loaded_env_names=(),
+        missing_env_names=("OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN"),
+    )
+    safety = SimpleNamespace(allowed=True, reasons=("startup_safety_passed",), warnings=())
+
+    _write_runtime_status(
+        dashboard_dir,
+        status="waiting_for_runtime_secrets",
+        settings=settings,
+        secret_result=secret_result,
+        safety=safety,
+        prism={"ready": True},
+        runtime_ready=False,
+        install_ready=True,
+    )
+
+    data = json.loads((dashboard_dir / "runtime_status.json").read_text(encoding="utf-8"))
+    assert data["status"] == "waiting_for_runtime_secrets"
+    assert data["trading_mode"] == "paper"
+    assert data["install_ready"] is True
+    assert data["runtime_ready"] is False
+    assert data["missing_secret_names"] == ["OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN"]
+    assert "updated_at" in data
 
 
 def test_prism_status_requires_trigger_batch(tmp_path: Path):
