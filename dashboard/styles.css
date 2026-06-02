@@ -213,6 +213,38 @@ h2 {
   line-height: 1.45;
 }
 
+.next-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.next-action {
+  display: grid;
+  gap: 6px;
+  min-height: 72px;
+  padding: 14px;
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.next-action strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.next-action span {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.next-action:hover {
+  border-color: var(--blue);
+}
+
 .feedback-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -259,7 +291,8 @@ h2 {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
   gap: 16px;
-  margin-top: 16px;
+  min-height: 120px;
+  margin: 0;
   padding: 16px 18px;
 }
 
