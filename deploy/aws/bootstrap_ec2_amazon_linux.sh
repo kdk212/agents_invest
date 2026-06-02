@@ -99,13 +99,17 @@ fi
 
 step "Install systemd service"
 cp "$APP_DIR/deploy/systemd/agents-invest.service.example" /etc/systemd/system/agents-invest.service
+sed -i "s#^User=.*#User=$APP_USER#" /etc/systemd/system/agents-invest.service
+sed -i "s#^WorkingDirectory=.*#WorkingDirectory=$APP_DIR#" /etc/systemd/system/agents-invest.service
+sed -i "s#^EnvironmentFile=.*#EnvironmentFile=$APP_DIR/config/runtime.env#" /etc/systemd/system/agents-invest.service
+sed -i "s#^ExecStart=.*#ExecStart=$APP_DIR/.venv/bin/python -m agents_invest_runner#" /etc/systemd/system/agents-invest.service
 systemctl daemon-reload
 systemctl enable agents-invest.service
 
 step "Run install checks"
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pytest -q "$APP_DIR/tests"
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json --allow-missing-secrets
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m agents_invest_runner --once --allow-missing-secrets
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python -m pytest -q tests"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python -m runtime.preflight --json --allow-missing-secrets"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python -m agents_invest_runner --once --allow-missing-secrets"
 
 cat <<EOF
 
