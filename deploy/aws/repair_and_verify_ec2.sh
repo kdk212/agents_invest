@@ -5,6 +5,7 @@ APP_DIR="${APP_DIR:-/opt/agents_invest}"
 APP_USER="${APP_USER:-ssm-user}"
 AWS_REGION="${AWS_REGION:-ap-southeast-2}"
 RUN_PRISM_ONCE="${RUN_PRISM_ONCE:-false}"
+DNF_EXTRA_ARGS="${DNF_EXTRA_ARGS:---allowerasing}"
 
 step() {
   printf '\n==> %s\n' "$1"
@@ -38,6 +39,73 @@ run_app_python() {
   fi
 }
 
+python_is_310_plus() {
+  "$1" - <<'PY'
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+}
+
+select_python() {
+  if command -v python3.11 >/dev/null 2>&1; then
+    echo python3.11
+    return 0
+  fi
+  if command -v python3.10 >/dev/null 2>&1; then
+    echo python3.10
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1 && python_is_310_plus python3; then
+    echo python3
+    return 0
+  fi
+  return 1
+}
+
+pkg_install_python311() {
+  local pkg=""
+  local args=(-y)
+  if command -v dnf >/dev/null 2>&1; then
+    pkg="dnf"
+    if [ -n "$DNF_EXTRA_ARGS" ]; then
+      # shellcheck disable=SC2206
+      args+=($DNF_EXTRA_ARGS)
+    fi
+  elif command -v yum >/dev/null 2>&1; then
+    pkg="yum"
+  else
+    return 1
+  fi
+  "$pkg" install "${args[@]}" python3.11 python3.11-pip || true
+}
+
+ensure_prism_python_runtime() {
+  local current="$APP_DIR/.venv/bin/python"
+  if [ -x "$current" ] && python_is_310_plus "$current"; then
+    "$current" --version
+    return 0
+  fi
+
+  step "Upgrade Python virtual environment for PRISM"
+  pkg_install_python311
+
+  local python_bin=""
+  python_bin="$(select_python || true)"
+  if [ -z "$python_bin" ]; then
+    echo "Python 3.10+ is required by the upstream PRISM runtime." >&2
+    echo "On Amazon Linux 2023, install it with: sudo dnf install -y python3.11 python3.11-pip" >&2
+    exit 2
+  fi
+
+  if [ -d "$APP_DIR/.venv" ]; then
+    mv "$APP_DIR/.venv" "$APP_DIR/.venv.backup.$(date +%Y%m%d%H%M%S)"
+  fi
+  run_as_app_user "$python_bin" -m venv "$APP_DIR/.venv"
+  run_as_app_user "$APP_DIR/.venv/bin/python" -m pip install --upgrade pip
+  run_as_app_user "$APP_DIR/.venv/bin/python" -m pip install -e "$APP_DIR[test,aws]"
+  "$APP_DIR/.venv/bin/python" --version
+}
+
 if [ ! -d "$APP_DIR" ]; then
   echo "Application directory not found: $APP_DIR" >&2
   echo "Run bootstrap first, or check that you are inside the EC2 instance rather than CloudShell." >&2
@@ -55,6 +123,8 @@ sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR" || true
 
 step "Pull latest agents_invest"
 run_as_app_user git -C "$APP_DIR" pull --ff-only
+
+ensure_prism_python_runtime
 
 step "Import or refresh PRISM runtime"
 sudo APP_DIR="$APP_DIR" APP_USER="$APP_USER" bash deploy/aws/import_prism_runtime.sh
