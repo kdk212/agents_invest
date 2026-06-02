@@ -8,6 +8,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 
 - 후보 종목 수익 기대값 점수화
 - 매수 전 리스크 차단
+- Buy Specialist 프롬프트에 수익 기대값/과거 트리거 성과 컨텍스트 추가
 - 페이퍼트레이딩 검증
 - 트리거/섹터/에이전트별 성과 피드백
 - 24시간 운영을 위한 AWS 배포 준비
@@ -81,6 +82,12 @@ python scripts/check_integration.py
 python scripts/patch_prism_adapters.py --check
 ```
 
+자동 패치는 다음 원본 파일에 보완을 연결합니다.
+
+- `prism-insight/trigger_batch.py`
+- `prism-insight/stock_tracking_agent.py`
+- `prism-insight/cores/agents/trading_agents.py`
+
 ## AWS 24시간 운영
 
 초기 운영은 EC2 `paper` 모드를 권장합니다.
@@ -99,13 +106,14 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
 
 1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
 2. [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)에 따라 원본을 병합합니다.
-3. `python scripts/patch_prism_adapters.py`로 `trigger_batch.py`, `stock_tracking_agent.py`에 보완 어댑터를 자동 연결합니다.
+3. `python scripts/patch_prism_adapters.py`로 `trigger_batch.py`, `stock_tracking_agent.py`, `cores/agents/trading_agents.py`에 보완 어댑터를 자동 연결합니다.
 4. 자동 패치가 실패하면 [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 수동 연결합니다.
 5. 페이퍼트레이딩 결과를 `PaperTradingValidator`로 검증합니다.
 6. 검증 기준을 통과한 뒤 [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)에 따라 배포합니다.
 
 ## 주요 문서
 
+- [PRISM-INSIGHT 에이전트별 보완 매트릭스](docs/AGENT_ENHANCEMENT_MATRIX_ko.md)
 - [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
 - [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
 - [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)
