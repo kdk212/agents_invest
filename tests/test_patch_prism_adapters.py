@@ -82,9 +82,50 @@ async def process_reports(self):
     assert not second.changed
 
 
+def test_patch_trading_agents_adds_profit_prompt_addendum(tmp_path, monkeypatch):
+    target = tmp_path / "trading_agents.py"
+    target.write_text(
+        """
+def create_trading_scenario_agent(language="ko"):
+    if language == "en":
+        instruction = """
+        ## Tool Usage
+        - use tools
+
+        ## JSON Response Format
+        {}
+        """
+    else:
+        instruction = """
+        ## 도구 사용
+        - 도구를 사용
+
+        ## JSON 응답 형식
+        {}
+        """
+    return instruction
+""".lstrip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(patcher, "TRADING_AGENTS", target)
+
+    result = patcher.patch_trading_agents()
+    text = target.read_text(encoding="utf-8")
+
+    assert result.changed
+    assert "agents_invest Profit Optimization Addendum" in text
+    assert "profit_score" in text
+    assert "risk_governor_context" in text
+
+    second = patcher.patch_trading_agents()
+    assert not second.changed
+
+
 def test_patch_missing_upstream_files_is_non_fatal(tmp_path, monkeypatch):
     monkeypatch.setattr(patcher, "TRIGGER_BATCH", tmp_path / "missing_trigger.py")
     monkeypatch.setattr(patcher, "STOCK_TRACKING", tmp_path / "missing_stock.py")
+    monkeypatch.setattr(patcher, "TRADING_AGENTS", tmp_path / "missing_trading_agents.py")
 
     assert not patcher.patch_trigger_batch().changed
     assert not patcher.patch_stock_tracking().changed
+    assert not patcher.patch_trading_agents().changed
