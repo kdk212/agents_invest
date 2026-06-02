@@ -25,6 +25,12 @@ if [ ! -d "$APP_DIR" ]; then
   exit 2
 fi
 
+if [ ! -x "$APP_DIR/.venv/bin/python" ]; then
+  echo "Virtualenv python not found: $APP_DIR/.venv/bin/python" >&2
+  echo "Run bootstrap first: sudo bash deploy/aws/bootstrap_ec2_amazon_linux.sh" >&2
+  exit 2
+fi
+
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required. Run the Amazon Linux bootstrap first." >&2
   exit 2
@@ -43,6 +49,10 @@ elif [ -d "$PREFIX" ]; then
 else
   sudo -u "$APP_USER" git clone --branch "$UPSTREAM_BRANCH" "$UPSTREAM_URL" "$PREFIX"
 fi
+
+step "Install core PRISM runtime dependencies"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install -e '$APP_DIR[test,aws]'"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && .venv/bin/python -m pip install python-dotenv pykrx==1.0.48 requests"
 
 step "Apply agents_invest adapter patches"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py"
