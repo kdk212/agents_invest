@@ -11,26 +11,26 @@
 - 원본 라이선스: AGPL-3.0
 - 기본 운영 모드: paper
 
-## 빠른 자동 병합
+## 빠른 자동 병합과 패치
 
-가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져오고, 테스트와 프리플라이트를 실행한다.
+가능하면 먼저 자동 스크립트를 사용한다. 스크립트는 원본을 `prism-insight/` 하위 폴더로 가져온다. 그 다음 패치 스크립트가 `trigger_batch.py`와 `stock_tracking_agent.py`에 보완 어댑터를 연결한다.
 
 Windows PowerShell:
 
 ```powershell
 .\scripts\integrate_prism_insight.ps1
+python scripts\patch_prism_adapters.py
+python scripts\check_integration.py
+python scripts\patch_prism_adapters.py --check
 ```
 
 Linux/macOS/AWS EC2:
 
 ```bash
 bash scripts/integrate_prism_insight.sh
-```
-
-병합 상태 확인:
-
-```bash
+python scripts/patch_prism_adapters.py
 python scripts/check_integration.py
+python scripts/patch_prism_adapters.py --check
 ```
 
 자동 스크립트가 실패하면 아래 수동 절차를 따른다.
@@ -126,6 +126,14 @@ prism-insight/README_ko.md
 
 ## 6. 보완 모듈 연결 순서
 
+자동 패치 우선:
+
+```bash
+python scripts/patch_prism_adapters.py
+```
+
+자동 패치가 실패하면 아래 수동 연결을 따른다.
+
 ### 6.1 후보 점수화 연결
 
 대상 원본 파일:
@@ -137,13 +145,17 @@ trigger_batch.py
 연결 함수:
 
 ```python
-from optimization import enrich_candidates_with_profit_scores
+from optimization import enrich_trigger_dataframe_with_profit_scores
 ```
 
-후보 리스트 생성 후:
+`select_final_tickers()`에서 `final_score` 계산 직후:
 
 ```python
-candidates = enrich_candidates_with_profit_scores(candidates)
+scored_df = enrich_trigger_dataframe_with_profit_scores(
+    scored_df,
+    trigger_type=name,
+    market_regime=_regime,
+)
 ```
 
 ### 6.2 매수 전 리스크 차단 연결
@@ -160,19 +172,7 @@ stock_tracking_agent.py
 from optimization import apply_risk_governor_to_scenario
 ```
 
-Buy Specialist 시나리오 생성 후, 주문 실행 전:
-
-```python
-scenario = apply_risk_governor_to_scenario(
-    scenario=scenario,
-    candidate=candidate_context,
-    portfolio=portfolio_context,
-    market=market_context,
-)
-
-if scenario["decision"] == "no_entry":
-    return scenario
-```
+`process_reports()`에서 `analysis_result.get("decision") == "Enter"` 매수 실행 직전 RiskGovernor를 호출한다. 자세한 수동 패치 예시는 [어댑터 연결 가이드](ADAPTER_WIRING_GUIDE_ko.md)를 참고한다.
 
 ### 6.3 후보 성과 추적 DB 연결
 
@@ -202,6 +202,7 @@ tracking/db_schema.py
 python -m pip install -e ".[test]"
 python -m pytest -q
 python scripts/check_integration.py
+python scripts/patch_prism_adapters.py --check
 ```
 
 ## 8. AWS 배포 전 점검
@@ -223,8 +224,7 @@ live 모드는 다음 조건이 모두 충족되어야 한다.
 ## 권장 다음 작업
 
 1. 방법 A로 원본을 `prism-insight/` 하위 폴더에 가져온다.
-2. 원본 실행을 먼저 paper/demo 모드로 확인한다.
-3. `trigger_batch.py`에 후보 점수화 연결을 한다.
-4. `stock_tracking_agent.py`에 RiskGovernor를 연결한다.
-5. 페이퍼트레이딩 후보 성과 추적을 켠다.
-6. GitHub Actions와 로컬 테스트를 통과시킨다.
+2. `python scripts/patch_prism_adapters.py`로 자동 연결한다.
+3. 원본 실행을 먼저 paper/demo 모드로 확인한다.
+4. 페이퍼트레이딩 후보 성과 추적을 켠다.
+5. GitHub Actions와 로컬 테스트를 통과시킨다.
