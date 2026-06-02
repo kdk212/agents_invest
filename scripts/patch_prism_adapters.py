@@ -30,29 +30,27 @@ class PatchResult:
 
 
 TRIGGER_IMPORT = "from optimization import enrich_trigger_dataframe_with_profit_scores"
-TRIGGER_PATCH = """\n                scored_df = enrich_trigger_dataframe_with_profit_scores(\n                    scored_df,\n                    trigger_type=name,\n                    market_regime=_regime,\n                )\n"""
+TRIGGER_PATCH = """
+                scored_df = enrich_trigger_dataframe_with_profit_scores(
+                    scored_df,
+                    trigger_type=name,
+                    market_regime=_regime,
+                )
+"""
 TRIGGER_SORT_ANCHOR = """                # Sort by final score
                 scored_df = scored_df.sort_values(\"final_score\", ascending=False)
 """
 TRIGGER_SCORE_COLUMN_OLD = '    score_column = "final_score" if use_hybrid and trade_date else "composite_score"'
 TRIGGER_SCORE_COLUMN_NEW = '    score_column = "profit_score" if use_hybrid and trade_date else "composite_score"'
 TRIGGER_OUTPUT_MARKER = 'stock_info["profit_score"]'
-TRIGGER_OUTPUT_ANCHOR = """                    if "final_score" in stocks_df.columns:
-                        stock_info["final_score"] = float(stocks_df.loc[ticker, "final_score"])
-
-"""
-TRIGGER_OUTPUT_PATCH = """                    if "profit_score" in stocks_df.columns:
-                        stock_info["profit_score"] = float(stocks_df.loc[ticker, "profit_score"])
-                    if "expected_value" in stocks_df.columns:
-                        stock_info["expected_value"] = float(stocks_df.loc[ticker, "expected_value"])
-                    if "risk_penalty" in stocks_df.columns:
-                        stock_info["risk_penalty"] = float(stocks_df.loc[ticker, "risk_penalty"])
-                    if "profit_decision_hint" in stocks_df.columns:
-                        stock_info["profit_decision_hint"] = str(stocks_df.loc[ticker, "profit_decision_hint"])
-                    if "profit_score_reasons" in stocks_df.columns:
-                        stock_info["profit_score_reasons"] = str(stocks_df.loc[ticker, "profit_score_reasons"])
-
-"""
+TRIGGER_OUTPUT_LINE_MARKER = 'stock_info["final_score"] = float(stocks_df.loc[ticker, "final_score"])'
+TRIGGER_OUTPUT_PATCH_FIELDS = (
+    ("profit_score", "float"),
+    ("expected_value", "float"),
+    ("risk_penalty", "float"),
+    ("profit_decision_hint", "str"),
+    ("profit_score_reasons", "str"),
+)
 
 STOCK_IMPORT = "from optimization import apply_risk_governor_to_scenario"
 STOCK_TRIGGER_MAP_MARKER = "'profit_score': stock.get('profit_score', 0)"
@@ -246,14 +244,38 @@ def patch_trigger_batch(check: bool = False) -> PatchResult:
         text = text.replace(TRIGGER_SCORE_COLUMN_OLD, TRIGGER_SCORE_COLUMN_NEW, 1)
 
     if TRIGGER_OUTPUT_MARKER not in text:
-        if TRIGGER_OUTPUT_ANCHOR not in text:
-            raise RuntimeError("trigger_batch.py anchor not found for profit-score JSON output patch")
-        text = text.replace(TRIGGER_OUTPUT_ANCHOR, TRIGGER_OUTPUT_ANCHOR + TRIGGER_OUTPUT_PATCH, 1)
+        text = add_profit_fields_to_trigger_output(text)
 
     changed = text != original
     if changed and not check:
         TRIGGER_BATCH.write_text(text, encoding="utf-8", newline="")
     return PatchResult(str(TRIGGER_BATCH), changed, "profit scoring adapter wired" if changed else "already wired")
+
+
+def add_profit_fields_to_trigger_output(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if TRIGGER_OUTPUT_LINE_MARKER not in line:
+            continue
+        indent = line[: len(line) - len(line.lstrip())]
+        newline = "\r\n" if line.endswith("\r\n") else "\n"
+        insert_at = index + 1
+        lines[insert_at:insert_at] = _trigger_output_patch_lines(indent, newline)
+        return "".join(lines)
+    raise RuntimeError("trigger_batch.py final_score output line not found for profit-score JSON output patch")
+
+
+def _trigger_output_patch_lines(indent: str, newline: str) -> list[str]:
+    patch_lines: list[str] = []
+    for field_name, caster in TRIGGER_OUTPUT_PATCH_FIELDS:
+        patch_lines.extend(
+            [
+                f'{indent}if "{field_name}" in stocks_df.columns:{newline}',
+                f'{indent}    stock_info["{field_name}"] = {caster}(stocks_df.loc[ticker, "{field_name}"]){newline}',
+            ]
+        )
+    patch_lines.append(newline)
+    return patch_lines
 
 
 def patch_stock_tracking(check: bool = False) -> PatchResult:
