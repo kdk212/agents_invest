@@ -82,6 +82,22 @@ secret_check.missing_env_names
 secret_env_present
 ```
 
+## Telegram 전송 테스트
+
+Telegram 토큰과 chat id가 저장된 뒤에는 PRISM 배치를 기다리지 않고 바로 테스트 메시지를 보낼 수 있습니다.
+
+```bash
+python scripts/test_telegram_alert.py --json
+```
+
+성공하면 다음 값이 나옵니다.
+
+```text
+"sent": true
+```
+
+실패했을 때 `telegram_secret_missing`이 보이면 `TELEGRAM_BOT_TOKEN` 또는 `TELEGRAM_CHAT_ID`가 아직 저장되지 않은 상태입니다.
+
 ## 주의
 
 - `CHANGE_ME` 값은 실제 비밀값으로 취급하지 않습니다.
