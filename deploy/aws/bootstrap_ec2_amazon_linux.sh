@@ -40,6 +40,29 @@ set_env_value() {
   fi
 }
 
+python_is_310_plus() {
+  "$1" - <<'PY'
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+}
+
+select_python() {
+  if command -v python3.11 >/dev/null 2>&1; then
+    echo python3.11
+    return 0
+  fi
+  if command -v python3.10 >/dev/null 2>&1; then
+    echo python3.10
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1 && python_is_310_plus python3; then
+    echo python3
+    return 0
+  fi
+  return 1
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root: sudo bash deploy/aws/bootstrap_ec2_amazon_linux.sh" >&2
   exit 2
@@ -77,8 +100,17 @@ pkg_install \
   python3-pip \
   unzip
 
-step "Install python venv support if available"
+step "Install Python 3.11 for PRISM runtime"
+pkg_install python3.11 python3.11-pip || true
 pkg_install python3-virtualenv || true
+
+PYTHON_BIN="$(select_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
+  echo "Python 3.10+ is required by the upstream PRISM runtime." >&2
+  echo "Amazon Linux 2023 usually supports: sudo dnf install -y python3.11 python3.11-pip" >&2
+  exit 2
+fi
+"$PYTHON_BIN" --version
 
 step "Install AWS CLI v2 if missing"
 if ! command -v aws >/dev/null 2>&1; then
@@ -104,7 +136,7 @@ fi
 sudo -u "$APP_USER" git -C "$APP_DIR" remote set-url origin "$PUBLIC_REPO_URL"
 
 step "Create Python virtual environment"
-sudo -u "$APP_USER" python3 -m venv "$APP_DIR/.venv"
+sudo -u "$APP_USER" "$PYTHON_BIN" -m venv "$APP_DIR/.venv"
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pip install --upgrade pip
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pip install -e "$APP_DIR[test,aws]"
 
