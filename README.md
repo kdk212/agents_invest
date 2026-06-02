@@ -47,6 +47,13 @@ AWS Parameter Store에 넣을 때는 다음처럼 실행합니다.
 python scripts/configure_telegram.py --target ssm --region ap-southeast-2
 ```
 
+기본 `config/runtime.env` 경로를 쓰기 어려운 환경에서는 별도 env 파일을 지정할 수 있습니다.
+
+```powershell
+$env:AGENTS_INVEST_ENV_FILE="C:\Users\kdk21\.codex\memories\agents_invest_runtime.env"
+python -m runtime.preflight --json
+```
+
 자세한 절차는 [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)을 따릅니다.
 
 ## 빠른 점검
