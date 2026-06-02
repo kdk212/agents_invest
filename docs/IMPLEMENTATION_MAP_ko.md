@@ -2,7 +2,7 @@
 
 ## 목표
 
-`dragon1086/prism-insight`의 기존 에이전트를 유지하면서 수익 기대값, 리스크 제어, 페이퍼트레이딩 검증을 추가한다.
+`dragon1086/prism-insight`의 기존 에이전트를 유지하면서 수익 기대값, 리스크 제어, 페이퍼트레이딩 검증, 성과 피드백을 추가한다.
 
 에이전트별 상세 보완 방향은 [PRISM-INSIGHT 에이전트별 보완 매트릭스](AGENT_ENHANCEMENT_MATRIX_ko.md)를 기준으로 한다.
 
@@ -10,6 +10,7 @@
 
 ```text
 trigger_batch.py
+  -> PerformanceFeedbackEngine
   -> ProfitScoringEngine
   -> stock_analysis_orchestrator.py
   -> cores/agents/trading_agents.py
@@ -17,12 +18,13 @@ trigger_batch.py
   -> RiskGovernor
   -> trading / KIS order execution
   -> tracking/journal.py
+  -> candidate_performance_tracker
   -> PaperTradingValidator
 ```
 
 ## 1. `trigger_batch.py`
 
-후보 종목이 만들어진 직후 `optimization.profit_scoring.ProfitScoringEngine`을 호출한다.
+후보 종목이 만들어진 직후 `optimization.profit_scoring.ProfitScoringEngine`을 호출한다. paper/live 성과 기록이 있으면 `optimization.performance_feedback.PerformanceFeedbackEngine`이 먼저 과거 트리거/섹터/종목 성과를 보조 점수로 변환한다.
 
 추가 필드:
 
@@ -31,6 +33,10 @@ trigger_batch.py
 - `expected_value`
 - `decision_hint`
 - `score_reasons`
+- `historical_trigger_edge`
+- `historical_sector_edge`
+- `historical_ticker_edge`
+- `performance_feedback_warnings`
 
 최종 후보 정렬에는 기존 점수와 `profit_score`를 함께 사용한다.
 
@@ -53,6 +59,7 @@ Buy Specialist 프롬프트는 원본 CAN SLIM 프레임워크를 유지한다. 
 - `risk_governor_context`
 - `trigger_historical_win_rate`
 - `historical_trigger_count`
+- `performance_feedback_warnings`
 
 응답 JSON 권장 필드:
 
@@ -90,9 +97,9 @@ Buy Specialist가 매수 시나리오를 만든 뒤, 실제 주문 전 `optimiza
 
 `approved=False`이면 주문을 실행하지 않고 `scenario["decision"] = "no_entry"`로 저장한다.
 
-## 4. `tracking/journal.py`
+## 4. `tracking/journal.py`와 성과 피드백
 
-매수하지 않은 후보의 후행 성과도 기록한다.
+매수하지 않은 후보의 후행 성과도 기록한다. 기록된 결과는 다음 후보 점수화의 보조 신호로 다시 들어간다.
 
 추가 지표:
 
@@ -103,9 +110,11 @@ Buy Specialist가 매수 시나리오를 만든 뒤, 실제 주문 전 `optimiza
 - 30일 최대낙폭
 - 트리거별 승률
 - 트리거별 평균 수익
+- 섹터별 평균 수익
+- 종목별 반복 손실
 - 매수 후보와 관망 후보의 성과 차이
 
-현재 저장소에는 이를 위한 `db/candidate_performance_tracker.sql` 스키마가 포함되어 있다.
+현재 저장소에는 이를 위한 `db/candidate_performance_tracker.sql` 스키마와 `optimization/performance_feedback.py` 피드백 엔진이 포함되어 있다.
 
 ## 5. 실계좌 전환 기준
 
