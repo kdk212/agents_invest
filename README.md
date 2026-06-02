@@ -18,7 +18,8 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/risk_governor.py`: 매수 직전 리스크 게이트
 - `optimization/paper_validator.py`: 페이퍼트레이딩 실계좌 전환 검증
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
-- `runtime/`: paper/live 시작 전 안전 점검과 프리플라이트 CLI
+- `runtime/`: paper/live 시작 전 안전 점검, 프리플라이트 CLI, 선택적 AWS SSM 설정 오버레이
+- `runtime/ssm.py`: `/agents-invest/*` 운영 파라미터를 읽어 킬스위치와 리스크 한도에 반영
 - `db/candidate_performance_tracker.sql`: 후보 성과 추적 스키마
 - `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
 - `scripts/`: 원본 병합, 자동 패치, 통합 상태 점검 보조 스크립트
@@ -41,6 +42,8 @@ python -m agents_invest_runner --once
 - `TRADING_MODE=live`
 - `PAPER_VALIDATION_APPROVED=true`
 - `KILL_SWITCH=false`
+
+AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switch`와 주요 리스크 한도가 환경값 위에 덮어써집니다. `live` 모드에서는 SSM 로딩 실패도 시작 차단 사유입니다.
 
 ## 원본 가져오기와 자동 연결
 
