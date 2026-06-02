@@ -18,15 +18,54 @@ AWS 콘솔에서 다음 기준으로 EC2를 생성합니다.
 - AMI: Ubuntu LTS
 - Instance type: `t3.small` 이상
 - Storage: 20GB 이상
-- Security group: SSH는 본인 IP만 허용
-- IAM role: 런타임 정책을 연결한 EC2 Role
+- Security group: SSH는 본인 IP만 허용, 대시보드 확인용 HTTP 80 허용
+- IAM role: 런타임 정책과 `AmazonSSMManagedInstanceCore`가 연결된 EC2 Role
 
 IAM 정책 예시:
 
 - `deploy/aws/iam_policy_agents_invest_runtime.json`: EC2가 실행 중 사용할 권한입니다. Parameter Store 읽기와 CloudWatch Logs 쓰기를 허용합니다.
 - `deploy/aws/iam_policy_agents_invest_setup.json`: 초기 설정자가 SSM 기본값과 SecureString을 만들 때 사용할 권한입니다. 계속 붙여둘 필요는 없습니다.
 
-## 2. EC2 접속 후 저장소 받기
+## 2. Session Manager 접속 준비
+
+Session Manager를 쓰려면 EC2에 IAM Role이 연결되어 있어야 합니다.
+
+필수 AWS managed policy:
+
+```text
+AmazonSSMManagedInstanceCore
+```
+
+이미 만든 인스턴스에 붙이는 위치:
+
+```text
+EC2 > Instances > i-08bdbe63b2db7880f 선택 > Actions > Security > Modify IAM role
+```
+
+Role을 붙인 뒤 2-5분 기다리고 `Connect > Session Manager` 화면을 새로고침합니다.
+
+다음 에러가 보이면 Role이 없거나 DHMC가 설정되지 않은 상태입니다.
+
+```text
+DHMC is not enabled and IAM instance profile is not attached
+SSM Agent unable to acquire credentials
+```
+
+가장 빠른 해결은 `AmazonSSMManagedInstanceCore`가 포함된 EC2용 IAM Role을 인스턴스에 연결하는 것입니다.
+
+CloudShell과 EC2는 다릅니다. CloudShell에서는 `/opt/agents_invest`가 없고 `systemctl`이 동작하지 않을 수 있습니다. EC2에 접속했는지 확인하려면 다음을 실행합니다.
+
+```bash
+ps -p 1 -o comm=
+```
+
+정상 EC2 Ubuntu면 보통 다음이 나옵니다.
+
+```text
+systemd
+```
+
+## 3. EC2 접속 후 저장소 받기
 
 처음 접속한 홈 디렉터리에서 스크립트 실행용 저장소를 받습니다.
 
@@ -40,7 +79,7 @@ cd agents_invest
 
 부트스트랩 스크립트는 실제 실행 위치를 `/opt/agents_invest`로 준비합니다. 홈 디렉터리의 clone은 설치 스크립트를 실행하기 위한 작업용입니다.
 
-## 3. SSM 기본값과 비밀값 만들기
+## 4. SSM 기본값과 비밀값 만들기
 
 SSM 값을 만들 권한이 있는 사용자 또는 임시 setup role로 기본 운영값을 생성합니다.
 
@@ -75,7 +114,7 @@ python scripts/configure_telegram.py --target ssm --region ap-southeast-2
 
 키, 토큰, 계좌번호 원문은 절대 GitHub에 커밋하지 않습니다.
 
-## 4. EC2 부트스트랩
+## 5. EC2 부트스트랩
 
 EC2에서 다음 명령으로 서버를 준비합니다.
 
@@ -94,10 +133,32 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
 - Python 가상환경 생성 및 AWS용 `boto3` 설치
 - `config/runtime.env` 생성
 - `ENABLE_SSM_SETTINGS=true` 설정
-- 테스트와 시작 전 안전 점검 실행
+- 테스트와 설치용 안전 점검 실행
 - `systemd` 서비스 등록
 
-## 5. 서비스 시작과 로그 확인
+## 6. 대시보드 설치
+
+```bash
+cd /opt/agents_invest
+sudo bash deploy/aws/install_dashboard_nginx.sh
+```
+
+설치 후 대시보드 주소:
+
+```text
+http://13.55.135.136/
+```
+
+브라우저에서 안 열리면 EC2 안에서 먼저 확인합니다.
+
+```bash
+curl -I http://127.0.0.1/
+sudo systemctl status nginx --no-pager
+```
+
+EC2 내부에서는 열리는데 브라우저에서 안 열리면 Security Group inbound HTTP 80 문제입니다.
+
+## 7. 서비스 시작과 로그 확인
 
 ```bash
 sudo systemctl start agents-invest
@@ -111,7 +172,7 @@ sudo journalctl -u agents-invest -f
 sudo systemctl stop agents-invest
 ```
 
-## 6. SSM 기반 비상정지
+## 8. SSM 기반 비상정지
 
 EC2 부트스트랩 기본값은 `ENABLE_SSM_SETTINGS=true`입니다. 이 경우 런타임은 반복 실행 중에도 SSM 설정을 다시 읽고, 다음 값이 `true`이면 신규 실행을 차단합니다.
 
@@ -133,7 +194,7 @@ KILL_SWITCH=true
 
 SSM 로딩이 실패하면 `paper` 모드에서는 경고로 남고, `live` 모드에서는 시작이 차단됩니다.
 
-## 7. 실계좌 전환 조건
+## 9. 실계좌 전환 조건
 
 아래 조건을 모두 만족하기 전에는 `live`로 전환하지 않습니다.
 
