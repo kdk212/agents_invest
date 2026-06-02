@@ -20,7 +20,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
 - `runtime/`: paper/live 시작 전 안전 점검과 프리플라이트 CLI
 - `db/candidate_performance_tracker.sql`: 후보 성과 추적 스키마
-- `scripts/`: 원본 병합과 통합 상태 점검 보조 스크립트
+- `scripts/`: 원본 병합, 자동 패치, 통합 상태 점검 보조 스크립트
 - `tests/`: 대표 의사결정, 어댑터, 런타임 안전 테스트
 - `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 라이선스, 병합 플레이북
 
@@ -41,32 +41,36 @@ python -m agents_invest_runner --once
 - `PAPER_VALIDATION_APPROVED=true`
 - `KILL_SWITCH=false`
 
-## 원본 가져오기
+## 원본 가져오기와 자동 연결
 
 Windows PowerShell:
 
 ```powershell
 .\scripts\integrate_prism_insight.ps1
+python scripts\patch_prism_adapters.py
+python scripts\check_integration.py
 ```
 
 Linux/macOS/AWS EC2:
 
 ```bash
 bash scripts/integrate_prism_insight.sh
+python scripts/patch_prism_adapters.py
+python scripts/check_integration.py
 ```
 
-가져온 뒤 확인:
+패치 상태만 확인:
 
 ```bash
-python scripts/check_integration.py
+python scripts/patch_prism_adapters.py --check
 ```
 
 ## 적용 방향
 
 1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
 2. [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)에 따라 원본을 병합합니다.
-3. [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 `trigger_batch.py`에 `enrich_trigger_dataframe_with_profit_scores()`를 연결합니다.
-4. `stock_tracking_agent.py`의 주문 실행 직전에 `apply_risk_governor_to_scenario()`를 연결합니다.
+3. `python scripts/patch_prism_adapters.py`로 `trigger_batch.py`, `stock_tracking_agent.py`에 보완 어댑터를 자동 연결합니다.
+4. 자동 패치가 실패하면 [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 수동 연결합니다.
 5. 페이퍼트레이딩 결과를 `PaperTradingValidator`로 검증합니다.
 6. 검증 기준을 통과한 뒤 [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)에 따라 배포합니다.
 
