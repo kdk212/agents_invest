@@ -20,6 +20,7 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
 - `runtime/`: paper/live 시작 전 안전 점검과 프리플라이트 CLI
 - `db/candidate_performance_tracker.sql`: 후보 성과 추적 스키마
+- `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
 - `scripts/`: 원본 병합, 자동 패치, 통합 상태 점검 보조 스크립트
 - `tests/`: 대표 의사결정, 어댑터, 런타임 안전 테스트
 - `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 라이선스, 병합 플레이북
@@ -77,6 +78,20 @@ python scripts/check_integration.py
 python scripts/patch_prism_adapters.py --check
 ```
 
+## AWS 24시간 운영
+
+초기 운영은 EC2 `paper` 모드를 권장합니다.
+
+```bash
+AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
+sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
+  AWS_REGION=ap-southeast-2 \
+  RUNTIME_MODE=paper \
+  bash deploy/aws/bootstrap_ec2_ubuntu.sh
+```
+
+자세한 콘솔/EC2 절차는 [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)를 따릅니다.
+
 ## 적용 방향
 
 1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
@@ -91,6 +106,7 @@ python scripts/patch_prism_adapters.py --check
 - [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
 - [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
 - [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)
+- [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)
 - [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)
 - [PRISM-INSIGHT 라이선스 고지](docs/LICENSING_NOTICE_ko.md)
 
