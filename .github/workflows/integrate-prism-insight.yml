@@ -1,0 +1,75 @@
+name: integrate-prism-insight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_url:
+        description: PRISM-INSIGHT upstream repository URL
+        required: true
+        default: https://github.com/dragon1086/prism-insight.git
+      upstream_branch:
+        description: PRISM-INSIGHT upstream branch
+        required: true
+        default: main
+      target_branch:
+        description: Branch to create/update with imported upstream
+        required: true
+        default: integrate-prism-insight
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create integration branch
+        run: git checkout -B "${{ inputs.target_branch }}"
+
+      - name: Import upstream under prism-insight
+        env:
+          UPSTREAM_URL: ${{ inputs.upstream_url }}
+          UPSTREAM_BRANCH: ${{ inputs.upstream_branch }}
+          BRANCH_NAME: ${{ inputs.target_branch }}
+        run: bash scripts/integrate_prism_insight.sh
+
+      - name: Patch PRISM-INSIGHT adapters
+        run: python scripts/patch_prism_adapters.py
+
+      - name: Commit adapter patch if needed
+        run: |
+          if [ -n "$(git status --short)" ]; then
+            git add prism-insight/trigger_batch.py prism-insight/stock_tracking_agent.py
+            git commit -m "feat: wire optimization adapters into prism-insight"
+          else
+            echo "No adapter patch changes to commit"
+          fi
+
+      - name: Verify patched integration
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+          python -m pytest -q
+          python scripts/check_integration.py
+          python scripts/patch_prism_adapters.py --check
+          python -m runtime.preflight --json
+
+      - name: Push integration branch
+        run: git push --force-with-lease origin "${{ inputs.target_branch }}"
