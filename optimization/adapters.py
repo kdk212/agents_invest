@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Iterable, Mapping
 
+from .performance_feedback import CandidateOutcome, PerformanceFeedbackEngine
 from .profit_scoring import ProfitScoreInput, ProfitScoringEngine
 from .risk_governor import (
     CandidateRiskState,
@@ -53,14 +54,25 @@ def enrich_trigger_dataframe_with_profit_scores(
 def enrich_candidates_with_profit_scores(
     candidates: Iterable[Mapping[str, Any]],
     engine: ProfitScoringEngine | None = None,
+    performance_outcomes: Iterable[CandidateOutcome | Mapping[str, Any]] | None = None,
+    feedback_engine: PerformanceFeedbackEngine | None = None,
 ) -> list[dict[str, Any]]:
-    """Return candidate dictionaries enriched with profit scoring fields."""
+    """Return candidate dictionaries enriched with profit scoring fields.
+
+    When performance_outcomes are supplied, prior paper/live results are first
+    converted into historical trigger, sector, and ticker edge signals. This keeps
+    upstream agent behavior intact while adding a feedback loop for ranking.
+    """
 
     scorer = engine or ProfitScoringEngine()
+    candidate_dicts = [dict(candidate) for candidate in candidates]
+    if performance_outcomes is not None:
+        feedback = feedback_engine or PerformanceFeedbackEngine()
+        candidate_dicts = feedback.build_feedback(candidate_dicts, performance_outcomes)
+
     enriched: list[dict[str, Any]] = []
 
-    for candidate in candidates:
-        candidate_dict = dict(candidate)
+    for candidate_dict in candidate_dicts:
         score_input = candidate_to_profit_score_input(candidate_dict)
         score_result = scorer.score(score_input)
         candidate_dict.update(
@@ -114,10 +126,10 @@ def candidate_to_profit_score_input(candidate: Mapping[str, Any]) -> ProfitScore
         technical_edge=_score_from(candidate, "technical_edge", "technical_score", "ta_score", "final_score"),
         flow_edge=_score_from(candidate, "flow_edge", "flow_score", "trading_flow_score", "supply_demand_score", "volume_score"),
         valuation_edge=_score_from(candidate, "valuation_edge", "financial_score", "valuation_score"),
-        sector_edge=_score_from(candidate, "sector_edge", "industry_score", "sector_score", "macro_sector_score"),
+        sector_edge=_max_score_from(candidate, "sector_edge", "industry_score", "sector_score", "macro_sector_score", "historical_sector_edge"),
         news_quality=_score_from(candidate, "news_quality", "news_score", "event_score"),
         macro_alignment=_score_from(candidate, "macro_alignment", "market_score", "macro_score"),
-        historical_trigger_edge=_score_from(candidate, "historical_trigger_edge", "trigger_win_score", "trigger_score"),
+        historical_trigger_edge=_max_score_from(candidate, "historical_trigger_edge", "trigger_win_score", "trigger_score", "historical_ticker_edge"),
         liquidity_quality=_score_from(candidate, "liquidity_quality", "liquidity_score", "amount_score", "composite_score"),
         expected_return_pct=expected_return,
         expected_loss_pct=expected_loss,
@@ -243,6 +255,18 @@ def _score_from(data: Mapping[str, Any], *keys: str) -> float:
     if 0.0 < value <= 1.0:
         value *= 100.0
     return max(0.0, min(100.0, value))
+
+
+def _max_score_from(data: Mapping[str, Any], *keys: str) -> float:
+    values = []
+    for key in keys:
+        if key in data:
+            value = _as_float(data.get(key), default=None)
+            if value is not None:
+                if 0.0 < value <= 1.0:
+                    value *= 100.0
+                values.append(max(0.0, min(100.0, value)))
+    return max(values) if values else 0.0
 
 
 def _row_to_dict(row: Any) -> dict[str, Any]:
