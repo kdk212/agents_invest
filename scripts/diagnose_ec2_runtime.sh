@@ -20,6 +20,14 @@ run_check() {
   return 0
 }
 
+app_python() {
+  if [ -x "$APP_DIR/.venv/bin/python" ]; then
+    cd "$APP_DIR" && PYTHONPATH="$APP_DIR" "$APP_DIR/.venv/bin/python" "$@"
+  else
+    return 127
+  fi
+}
+
 metadata_value() {
   local path="$1"
   local token=""
@@ -65,9 +73,9 @@ fi
 section "Python and install preflight"
 if [ -x "$APP_DIR/.venv/bin/python" ]; then
   run_check "python version" "$APP_DIR/.venv/bin/python" --version
-  run_check "install preflight" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json --allow-missing-secrets
-  run_check "strict runtime preflight" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json
-  run_check "dashboard status export" "$APP_DIR/.venv/bin/python" "$APP_DIR/scripts/export_dashboard_status.py" --output "$APP_DIR/dashboard/status.json"
+  run_check "install preflight" app_python -m runtime.preflight --json --allow-missing-secrets
+  run_check "strict runtime preflight" app_python -m runtime.preflight --json
+  run_check "dashboard status export" app_python "$APP_DIR/scripts/export_dashboard_status.py" --output "$APP_DIR/dashboard/status.json"
 else
   echo "missing virtualenv python: $APP_DIR/.venv/bin/python"
 fi
