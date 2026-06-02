@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime import evaluate_startup_safety, load_runtime_secrets, load_runtime_settings
+from scripts.summarize_candidate_history import build_summary as build_candidate_history_summary
 
 DEFAULT_OUTPUT = Path("dashboard/status.json")
 
@@ -81,6 +82,7 @@ def build_status(*, integration_present: bool = False, paper_approved: bool = Fa
         region=settings.aws_region,
     )
     safety = evaluate_startup_safety(settings)
+    history = _safe_candidate_history_summary()
     git_sha = _git_value("rev-parse", "--short", "HEAD")
     git_branch = _git_value("rev-parse", "--abbrev-ref", "HEAD")
 
@@ -118,12 +120,39 @@ def build_status(*, integration_present: bool = False, paper_approved: bool = Fa
             {"title": "Startup Safety", "detail": "; ".join(safety.reasons) or "시작 안전 조건 통과", "state": "done" if safety.allowed else "blocked"},
             {"title": "PRISM 통합", "detail": "prism-insight 폴더 확인됨" if integration_present else "EC2에서 원본 복사와 패치 필요", "state": "done" if integration_present else "warning"},
         ],
-        "feedback": {
-            "trigger_edge": "준비됨",
-            "sector_edge": "준비됨",
-            "ticker_edge": "준비됨",
-        },
+        "feedback": _feedback_from_history(history),
+        "candidate_history": history,
         "next_actions": NEXT_ACTIONS_INTEGRATED if integration_present else NEXT_ACTIONS_PENDING,
+    }
+
+
+def _safe_candidate_history_summary() -> dict[str, object]:
+    try:
+        return build_candidate_history_summary(Path("runtime/candidate_history.sqlite3"))
+    except Exception as exc:
+        return {
+            "db_path": "runtime/candidate_history.sqlite3",
+            "exists": False,
+            "total_candidates": 0,
+            "latest_selected_at": None,
+            "top_triggers": [],
+            "error": f"{exc.__class__.__name__}: {exc}",
+        }
+
+
+def _feedback_from_history(history: dict[str, object]) -> dict[str, str]:
+    total = int(history.get("total_candidates") or 0)
+    latest = str(history.get("latest_selected_at") or "대기")
+    top_triggers = history.get("top_triggers") if isinstance(history.get("top_triggers"), list) else []
+    top_trigger = "대기"
+    if top_triggers:
+        first = top_triggers[0]
+        if isinstance(first, dict):
+            top_trigger = f"{first.get('trigger_type') or '미분류'} {first.get('sample_count') or 0}건"
+    return {
+        "trigger_edge": top_trigger if total else "대기",
+        "sector_edge": f"후보 {total}건" if total else "대기",
+        "ticker_edge": f"최근 {latest}" if total else "대기",
     }
 
 
