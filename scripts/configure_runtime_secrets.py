@@ -108,7 +108,7 @@ def collect_runtime_secret_values(
             prompt += ": "
             value = getpass.getpass(prompt).strip()
         if value:
-            values[env_name] = value
+            values[env_name] = _clean_env_value(value)
         elif required:
             raise ConfigurationError(f"{env_name} is required")
 
@@ -128,9 +128,11 @@ def validate_secret_values(values: Mapping[str, str]) -> None:
 
 
 def write_local_env(path: Path, updates: Mapping[str, str]) -> None:
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(merge_env_text(text, updates), encoding="utf-8")
+    safe_updates = {key: _clean_env_value(value) for key, value in updates.items()}
+    output = _clean_env_value(merge_env_text(text, safe_updates))
+    path.write_text(output, encoding="utf-8")
 
 
 def put_runtime_secret_parameters(
@@ -167,6 +169,11 @@ def build_ssm_client(region: str) -> Any:
 
 def parameter_name(prefix: str, suffix: str) -> str:
     return f"{normalize_prefix(prefix)}/{suffix.strip('/')}"
+
+
+def _clean_env_value(value: object) -> str:
+    text = str(value)
+    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore").strip()
 
 
 if __name__ == "__main__":
