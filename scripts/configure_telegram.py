@@ -10,10 +10,9 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 DEFAULT_ENV_PATH = Path("config/runtime.env")
 DEFAULT_PREFIX = "/agents-invest"
@@ -61,9 +60,6 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigurationError as exc:
         print(f"configuration failed: {exc}", file=sys.stderr)
         return 2
-    except subprocess.CalledProcessError as exc:
-        print(f"aws cli failed with exit code {exc.returncode}", file=sys.stderr)
-        return exc.returncode or 1
     return 0
 
 
@@ -136,29 +132,31 @@ def put_telegram_parameters(
     region: str = DEFAULT_REGION,
     prefix: str = DEFAULT_PREFIX,
     dry_run: bool = False,
+    client: Any | None = None,
 ) -> None:
     parameters = {
         parameter_name(prefix, "telegram/bot-token"): values[TELEGRAM_BOT_TOKEN_KEY],
         parameter_name(prefix, "telegram/chat-id"): values[TELEGRAM_CHAT_ID_KEY],
     }
+    if dry_run:
+        return
+
+    ssm_client = client or build_ssm_client(region)
     for name, value in parameters.items():
-        command = [
-            "aws",
-            "ssm",
-            "put-parameter",
-            "--region",
-            region,
-            "--name",
-            name,
-            "--type",
-            "SecureString",
-            "--value",
-            value,
-            "--overwrite",
-        ]
-        if dry_run:
-            continue
-        subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+        ssm_client.put_parameter(
+            Name=name,
+            Type="SecureString",
+            Value=value,
+            Overwrite=True,
+        )
+
+
+def build_ssm_client(region: str) -> Any:
+    try:
+        import boto3  # type: ignore[import-not-found]
+    except ImportError as exc:  # pragma: no cover - depends on deployment environment
+        raise ConfigurationError("boto3 is required for --target ssm; install agents-invest[aws]") from exc
+    return boto3.client("ssm", region_name=region)
 
 
 def parameter_name(prefix: str, suffix: str) -> str:
