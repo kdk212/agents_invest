@@ -73,7 +73,7 @@ jobs:
           python -m pytest -q
           python scripts/check_integration.py
           python scripts/patch_prism_adapters.py --check
-          python -m runtime.preflight --json
+          python -m runtime.preflight --json --allow-missing-secrets
 
       - name: Push integration branch
         run: git push --force-with-lease origin "${{ inputs.target_branch }}"
@@ -90,12 +90,12 @@ jobs:
           ## Summary
           - Imports PRISM-INSIGHT upstream under `prism-insight/`.
           - Wires agents_invest profit scoring and risk-governor adapters into the imported agents.
-          - Runs pytest, integration marker checks, adapter idempotency check, and runtime preflight.
+          - Runs pytest, integration marker checks, adapter idempotency check, and install-mode runtime preflight.
 
           ## Required human checks before merge
           - Review AGPL-3.0 and upstream license obligations.
           - Confirm `prism-insight/trigger_batch.py`, `stock_tracking_agent.py`, and `cores/agents/trading_agents.py` patches match the intended agent behavior.
-          - Keep operation in paper mode until paper validation and Telegram/Kill Switch checks pass.
+          - Keep operation in paper mode until paper validation, Telegram alerts, strict runtime preflight, and Kill Switch checks pass.
           EOF
 
           existing_pr="$(gh pr list --head "$TARGET_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
@@ -126,7 +126,7 @@ jobs:
             echo "- pytest"
             echo "- scripts/check_integration.py"
             echo "- scripts/patch_prism_adapters.py --check"
-            echo "- python -m runtime.preflight --json"
+            echo "- python -m runtime.preflight --json --allow-missing-secrets"
             echo ""
-            echo "Next: review the draft PR, keep paper mode, then validate Telegram alerts and RiskGovernor behavior before live trading."
+            echo "Next: review the draft PR, keep paper mode, then validate Telegram alerts, strict runtime preflight, and RiskGovernor behavior before live trading."
           } >> "$GITHUB_STEP_SUMMARY"
