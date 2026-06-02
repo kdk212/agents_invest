@@ -83,8 +83,7 @@ AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
 /agents-invest/max-positions=10
 /agents-invest/max-same-sector=3
 /agents-invest/max-sector-weight-pct=30.0
-/agents-invest/min-buy-score=7.0
-/agents-invest/min-profit-score=60.0
+/agents-invest/min-buy-score=60.0
 /agents-invest/min-risk-reward=1.2
 /agents-invest/max-expected-loss-pct=7.0
 ```
@@ -100,13 +99,19 @@ AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
 /agents-invest/telegram/chat-id
 ```
 
-Telegram 값은 다음 도구로 입력할 수 있습니다.
+OpenAI/KIS/Telegram 값을 한 번에 입력하려면 다음 도구를 사용합니다. 입력한 원문 값은 출력하지 않습니다.
+
+```bash
+python scripts/configure_runtime_secrets.py --target ssm --region ap-southeast-2
+```
+
+Telegram 값만 별도로 수정할 때는 다음 도구를 사용할 수 있습니다.
 
 ```bash
 python scripts/configure_telegram.py --target ssm --region ap-southeast-2
 ```
 
-OpenAI/KIS 키는 원문을 채팅이나 GitHub에 붙여넣지 말고, AWS 콘솔의 Parameter Store 또는 안전한 설정 도구로만 저장합니다. `CHANGE_ME` 값은 실제 값으로 바꾼 뒤 GitHub에는 절대 커밋하지 않습니다.
+OpenAI/KIS 키, Telegram 토큰, 계좌번호 원문은 채팅이나 GitHub에 붙여넣지 말고 AWS 콘솔의 Parameter Store 또는 위 도구로만 저장합니다. `CHANGE_ME` 값은 실제 값으로 바꾼 뒤 GitHub에는 절대 커밋하지 않습니다.
 
 ## 4. 비상정지
 
@@ -130,7 +135,7 @@ git clone https://github.com/kdk212/agents_invest.git
 cd agents_invest
 
 AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
-python scripts/configure_telegram.py --target ssm --region ap-southeast-2
+python scripts/configure_runtime_secrets.py --target ssm --region ap-southeast-2
 
 sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
   AWS_REGION=ap-southeast-2 \
