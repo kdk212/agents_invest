@@ -21,30 +21,37 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/risk_governor.py`: 매수 직전 리스크 게이트
 - `optimization/paper_validator.py`: 페이퍼트레이딩 실계좌 전환 검증
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
-- `runtime/`: paper/live 시작 전 안전 점검, 프리플라이트 CLI, 로컬 env 파일 로딩, 선택적 AWS SSM 설정 오버레이, SecureString 비밀값 환경변수 주입
+- `runtime/`: paper/live 시작 전 안전 점검, 프리플라이트 CLI, 로컬 env 파일 로딩, AWS SSM 설정 오버레이, SecureString 비밀값 환경변수 주입
 - `runtime/ssm.py`: `/agents-invest/*` 운영 파라미터를 읽어 킬스위치와 리스크 한도에 반영
 - `runtime/secrets.py`: OpenAI/KIS/Telegram SecureString을 표준 환경변수로 주입
-- `scripts/`: 원본 병합, 자동 패치, Telegram 설정, 통합 상태 점검 보조 스크립트
+- `scripts/`: 원본 병합, 자동 패치, 비밀값 입력, 통합 상태 점검 보조 스크립트
 - `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
-- `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, Telegram 설정, 런타임 비밀값, 라이선스, 병합 플레이북
+- `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 비밀값 입력, 라이선스, 병합 플레이북
 
 ## 빠른 시작 순서
 
 1. 로컬 또는 AWS EC2에 저장소를 준비합니다.
-2. Telegram 알림을 받을 bot token/chat id를 입력합니다.
-3. OpenAI LLM 키와 KIS API 키를 로컬 `config/runtime.env` 또는 AWS Parameter Store에 저장합니다.
-4. PRISM-INSIGHT 원본을 병합하고 자동 패치를 적용합니다.
-5. `paper` 모드로 충분히 검증한 뒤에만 `live` 전환을 검토합니다.
+2. OpenAI, KIS, Telegram 값을 채팅이나 GitHub에 붙여넣지 말고 전용 도구로 입력합니다.
+3. PRISM-INSIGHT 원본을 병합하고 자동 패치를 적용합니다.
+4. `paper` 모드로 충분히 검증합니다.
+5. 모든 안전 조건을 통과한 뒤에만 `live` 전환을 검토합니다.
 
-Telegram 값은 채팅창이나 GitHub에 붙여넣지 말고 전용 도구로 입력합니다.
+로컬 paper 실행용 비밀값 입력:
+
+```bash
+python scripts/configure_runtime_secrets.py --target local
+```
+
+AWS Parameter Store SecureString 저장:
+
+```bash
+python scripts/configure_runtime_secrets.py --target ssm --region ap-southeast-2
+```
+
+Telegram만 따로 바꾸고 싶을 때는 기존 Telegram 전용 도구도 사용할 수 있습니다.
 
 ```bash
 python scripts/configure_telegram.py --target local
-```
-
-AWS Parameter Store에 넣을 때는 다음처럼 실행합니다.
-
-```bash
 python scripts/configure_telegram.py --target ssm --region ap-southeast-2
 ```
 
@@ -55,7 +62,7 @@ $env:AGENTS_INVEST_ENV_FILE="C:\Users\kdk21\.codex\memories\agents_invest_runtim
 python -m runtime.preflight --json
 ```
 
-자세한 절차는 [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)과 [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)을 따릅니다.
+자세한 절차는 [OpenAI/KIS/Telegram 비밀값 입력](docs/RUNTIME_SECRET_INPUT_ko.md), [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md), [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)을 따릅니다.
 
 ## 빠른 점검
 
@@ -92,10 +99,10 @@ AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switc
 
 ### GitHub Actions에서 실행
 
-로컬 Git 경로 문제가 있으면 GitHub에서 수동 워크플로를 실행합니다. 자세한 화면별 절차는 [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)을 따릅니다.
+로컬 Git 경로 문제가 있으면 GitHub에서 수동 워크플로우를 실행합니다. 자세한 화면별 절차는 [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)을 따릅니다.
 
 1. 저장소의 `Actions` 탭으로 이동합니다.
-2. `integrate-prism-insight` 워크플로를 선택합니다.
+2. `integrate-prism-insight` 워크플로우를 선택합니다.
 3. `Run workflow`를 실행합니다.
 4. 결과 브랜치 `integrate-prism-insight`와 자동 생성된 draft PR을 확인합니다.
 5. 테스트가 통과하면 PR 리뷰 후 main 병합을 진행합니다.
@@ -130,7 +137,7 @@ python scripts/check_integration.py
 
 ```bash
 AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
-python scripts/configure_telegram.py --target ssm --region ap-southeast-2
+python scripts/configure_runtime_secrets.py --target ssm --region ap-southeast-2
 sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
   AWS_REGION=ap-southeast-2 \
   RUNTIME_MODE=paper \
@@ -151,6 +158,7 @@ AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](
 ## 주요 문서
 
 - [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)
+- [OpenAI/KIS/Telegram 비밀값 입력](docs/RUNTIME_SECRET_INPUT_ko.md)
 - [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)
 - [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)
 - [PRISM-INSIGHT 에이전트별 보완 매트릭스](docs/AGENT_ENHANCEMENT_MATRIX_ko.md)
