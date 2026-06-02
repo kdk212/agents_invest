@@ -21,11 +21,12 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `optimization/risk_governor.py`: 매수 직전 리스크 게이트
 - `optimization/paper_validator.py`: 페이퍼트레이딩 실계좌 전환 검증
 - `optimization/adapters.py`: PRISM-INSIGHT 후보 DataFrame/시나리오 dict 연결 어댑터
-- `runtime/`: paper/live 시작 전 안전 점검, 프리플라이트 CLI, 로컬 env 파일 로딩, 선택적 AWS SSM 설정 오버레이
+- `runtime/`: paper/live 시작 전 안전 점검, 프리플라이트 CLI, 로컬 env 파일 로딩, 선택적 AWS SSM 설정 오버레이, SecureString 비밀값 환경변수 주입
 - `runtime/ssm.py`: `/agents-invest/*` 운영 파라미터를 읽어 킬스위치와 리스크 한도에 반영
+- `runtime/secrets.py`: OpenAI/KIS/Telegram SecureString을 표준 환경변수로 주입
 - `scripts/`: 원본 병합, 자동 패치, Telegram 설정, 통합 상태 점검 보조 스크립트
 - `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
-- `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, Telegram 설정, 라이선스, 병합 플레이북
+- `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, Telegram 설정, 런타임 비밀값, 라이선스, 병합 플레이북
 
 ## 빠른 시작 순서
 
@@ -54,7 +55,7 @@ $env:AGENTS_INVEST_ENV_FILE="C:\Users\kdk21\.codex\memories\agents_invest_runtim
 python -m runtime.preflight --json
 ```
 
-자세한 절차는 [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)을 따릅니다.
+자세한 절차는 [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)과 [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)을 따릅니다.
 
 ## 빠른 점검
 
@@ -85,7 +86,7 @@ python -m runtime.preflight --json
 - `PAPER_VALIDATION_APPROVED=true`
 - `KILL_SWITCH=false`
 
-AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switch`와 주요 리스크 한도가 환경값 위에 덮어써집니다. `live` 모드에서는 SSM 로딩 실패도 시작 차단 사유입니다.
+AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switch`와 주요 리스크 한도가 환경값 위에 덮어써지고, SecureString 비밀값은 `OPENAI_API_KEY`, `KIS_APP_KEY`, `TELEGRAM_BOT_TOKEN` 같은 표준 환경변수로 주입됩니다. `live` 모드에서는 SSM 로딩 실패도 시작 차단 사유입니다.
 
 ## 원본 가져오기와 자동 연결
 
@@ -150,6 +151,7 @@ AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](
 ## 주요 문서
 
 - [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)
+- [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)
 - [PRISM-INSIGHT 에이전트별 보완 매트릭스](docs/AGENT_ENHANCEMENT_MATRIX_ko.md)
 - [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
 - [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
