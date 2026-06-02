@@ -33,10 +33,6 @@ LOCAL_DEFAULTS = {
 }
 
 
-class FakeValue(str):
-    """Marker used only in tests to keep fake secret values explicit."""
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Configure runtime secrets")
     parser.add_argument(
