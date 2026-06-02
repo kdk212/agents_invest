@@ -60,7 +60,7 @@ STOCK_TRIGGER_SECTION_MARKER = "### agents_invest Profit Context"
 STOCK_TRIGGER_SECTION_ANCHOR = """            # Prepare prompt based on language
             if self.language == "ko":
 """
-STOCK_TRIGGER_SECTION_PATCH = """            trigger_profit_info = getattr(self, "trigger_info_map", {}).get(ticker, {}) if ticker else {}
+STOCK_TRIGGER_SECTION_PATCH = '''            trigger_profit_info = getattr(self, "trigger_info_map", {}).get(ticker, {}) if ticker else {}
             if trigger_profit_info and any(
                 trigger_profit_info.get(key) not in (None, "", 0)
                 for key in ("profit_score", "expected_value", "risk_penalty", "profit_decision_hint", "profit_score_reasons")
@@ -74,7 +74,7 @@ STOCK_TRIGGER_SECTION_PATCH = """            trigger_profit_info = getattr(self,
         - profit_score_reasons: {trigger_profit_info.get('profit_score_reasons', '')}
         """
 
-"""
+'''
 STOCK_SCENARIO_MERGE_MARKER = "trigger_profit_context"
 STOCK_SCENARIO_MERGE_ANCHOR = """            scenario = await self._extract_trading_scenario(
                 report_content,
