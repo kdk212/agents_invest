@@ -100,7 +100,7 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
   bash deploy/aws/bootstrap_ec2_ubuntu.sh
 ```
 
-자세한 콘솔/EC2 절차는 [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)를 따릅니다.
+AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](docs/AWS_CONSOLE_CHECKLIST_ko.md)를 따릅니다. 자세한 EC2 절차는 [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)를 따릅니다.
 
 ## 적용 방향
 
@@ -117,6 +117,7 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
 - [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
 - [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
 - [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)
+- [AWS 콘솔 설정 체크리스트](docs/AWS_CONSOLE_CHECKLIST_ko.md)
 - [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)
 - [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)
 - [PRISM-INSIGHT 라이선스 고지](docs/LICENSING_NOTICE_ko.md)
