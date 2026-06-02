@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>agents_invest 운영 대시보드</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">PRISM-INSIGHT + agents_invest</p>
+        <h1 id="page-title">운영 대시보드</h1>
+        <p class="subtitle">수익 점수화, 리스크 차단, PRISM 통합, AWS 24시간 paper 운영 상태를 한 화면에서 확인합니다.</p>
+      </div>
+      <div class="hero-panel" aria-label="운영 상태 요약">
+        <canvas id="statusCanvas" width="320" height="180" aria-hidden="true"></canvas>
+        <div class="pulse-row">
+          <span class="pulse" id="overallPulse"></span>
+          <span id="overallText">상태 불러오는 중</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid metrics" aria-label="핵심 상태">
+      <article class="metric">
+        <span class="label">운영 모드</span>
+        <strong id="tradingMode">-</strong>
+        <small id="modeDetail">paper 권장</small>
+      </article>
+      <article class="metric">
+        <span class="label">PRISM 통합</span>
+        <strong id="integrationState">-</strong>
+        <small id="integrationDetail">Actions 실행 필요</small>
+      </article>
+      <article class="metric">
+        <span class="label">비상정지</span>
+        <strong id="killSwitch">-</strong>
+        <small id="killSwitchDetail">SSM / env</small>
+      </article>
+      <article class="metric">
+        <span class="label">검증</span>
+        <strong id="validationState">-</strong>
+        <small id="validationDetail">live 전환 전 필수</small>
+      </article>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>진행 단계</h2>
+          <span id="updatedAt">-</span>
+        </div>
+        <ol class="timeline" id="timeline"></ol>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>운영 안전장치</h2>
+          <span>live 차단 우선</span>
+        </div>
+        <ul class="checks" id="safetyChecks"></ul>
+      </article>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>성과 피드백</h2>
+          <span>paper 결과 기반</span>
+        </div>
+        <div class="feedback-grid" id="feedbackGrid"></div>
+      </article>
+
+      <article class="panel actions">
+        <div class="panel-head">
+          <h2>바로가기</h2>
+          <span>다음 액션</span>
+        </div>
+        <a href="https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml" target="_blank" rel="noreferrer">PRISM 통합 실행</a>
+        <a href="https://github.com/kdk212/agents_invest/issues/1" target="_blank" rel="noreferrer">체크리스트 이슈</a>
+        <a href="https://github.com/kdk212/agents_invest" target="_blank" rel="noreferrer">GitHub 저장소</a>
+        <a href="https://ap-southeast-2.console.aws.amazon.com/console/home?region=ap-southeast-2" target="_blank" rel="noreferrer">AWS 콘솔</a>
+      </article>
+    </section>
+
+    <section class="notice" aria-label="주의">
+      <strong>주의</strong>
+      <p>이 대시보드는 수익을 보장하지 않습니다. 실계좌 자동매매는 PRISM 통합, paper 검증, Telegram 알림, Kill Switch, RiskGovernor 확인이 끝난 뒤에만 검토합니다.</p>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
