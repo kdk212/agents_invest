@@ -2,6 +2,10 @@
 
 PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 
+## 지금 바로 볼 문서
+
+현재 AWS 접속 복구, GitHub PRISM 통합 실행, EC2 설치 순서는 [현재 다음 단계](docs/NEXT_STEPS_ko.md)를 먼저 봅니다.
+
 ## 목표
 
 `dragon1086/prism-insight`의 기존 에이전트를 최대한 그대로 활용하되, 실전 운영 전에 검증 가능한 보완 계층을 추가합니다.
@@ -27,16 +31,17 @@ PRISM-INSIGHT 기반 수익 최적화 보완 작업 저장소입니다.
 - `runtime/secrets.py`: OpenAI/KIS/Telegram SecureString을 표준 환경변수로 주입
 - `scripts/`: 원본 병합, 자동 패치, 비밀값 입력, 통합 상태 점검 보조 스크립트
 - `db/`: 후보 성과 추적과 트리거/섹터/종목별 요약 뷰
-- `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시
+- `deploy/aws/`: EC2 부트스트랩, SSM 기본값, IAM 정책 예시, CloudShell SSM Role 연결 스크립트
 - `docs/`: PRISM-INSIGHT 연결 설계, AWS 운영, 비밀값 입력, 라이선스, 병합 플레이북
 
 ## 빠른 시작 순서
 
-1. 로컬 또는 AWS EC2에 저장소를 준비합니다.
-2. OpenAI, KIS, Telegram 값을 채팅이나 GitHub에 붙여넣지 말고 전용 도구로 입력합니다.
-3. PRISM-INSIGHT 원본을 병합하고 자동 패치를 적용합니다.
-4. `paper` 모드로 충분히 검증합니다.
-5. 모든 안전 조건을 통과한 뒤에만 `live` 전환을 검토합니다.
+1. [현재 다음 단계](docs/NEXT_STEPS_ko.md)를 보고 AWS 접속과 GitHub 통합부터 진행합니다.
+2. 로컬 또는 AWS EC2에 저장소를 준비합니다.
+3. OpenAI, KIS, Telegram 값을 채팅이나 GitHub에 붙여넣지 말고 전용 도구로 입력합니다.
+4. PRISM-INSIGHT 원본을 병합하고 자동 패치를 적용합니다.
+5. `paper` 모드로 충분히 검증합니다.
+6. 모든 안전 조건을 통과한 뒤에만 `live` 전환을 검토합니다.
 
 로컬 paper 실행용 비밀값 입력:
 
@@ -160,34 +165,4 @@ sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
   bash deploy/aws/bootstrap_ec2_ubuntu.sh
 ```
 
-AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](docs/AWS_CONSOLE_CHECKLIST_ko.md)를 따릅니다. 자세한 EC2 절차는 [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)를 따릅니다.
-
-## 적용 방향
-
-1. PRISM-INSIGHT 원본을 별도 작업 경로에 준비합니다.
-2. [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)에 따라 원본을 병합합니다.
-3. `python scripts/patch_prism_adapters.py`로 세 원본 파일에 보완 어댑터를 자동 연결합니다.
-4. 자동 패치가 실패하면 [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)에 따라 수동 연결합니다.
-5. 페이퍼트레이딩 결과를 `PaperTradingValidator`로 검증합니다.
-6. 검증 기준을 통과한 뒤 [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)에 따라 배포합니다.
-
-## 주요 문서
-
-- [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)
-- [OpenAI/KIS/Telegram 비밀값 입력](docs/RUNTIME_SECRET_INPUT_ko.md)
-- [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)
-- [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)
-- [PRISM-INSIGHT 에이전트별 보완 매트릭스](docs/AGENT_ENHANCEMENT_MATRIX_ko.md)
-- [PRISM-INSIGHT 보완 구현 지도](docs/IMPLEMENTATION_MAP_ko.md)
-- [어댑터 연결 가이드](docs/ADAPTER_WIRING_GUIDE_ko.md)
-- [원본 병합 플레이북](docs/UPSTREAM_MERGE_PLAYBOOK_ko.md)
-- [AWS 콘솔 설정 체크리스트](docs/AWS_CONSOLE_CHECKLIST_ko.md)
-- [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md)
-- [AWS 24시간 운영 초안](docs/AWS_24H_OPERATION_ko.md)
-- [PRISM-INSIGHT 라이선스 고지](docs/LICENSING_NOTICE_ko.md)
-
-## 주의
-
-실계좌 자동매매는 충분한 페이퍼트레이딩, 손실 한도, 모니터링, 비상 정지 장치가 준비된 뒤에만 켜야 합니다.
-
-PRISM-INSIGHT는 AGPL-3.0 및 상업 라이선스 조건이 있으므로, 외부 제공 서비스나 SaaS 형태로 운영할 경우 원저작자 라이선스 조건을 별도로 확인해야 합니다.
+자세한 절차는 [AWS EC2 24시간 실행 가이드](docs/AWS_EC2_SETUP_ko.md), [AWS 콘솔 설정 체크리스트](docs/AWS_CONSOLE_CHECKLIST_ko.md), [CloudShell에서 EC2 SSM Role 붙이기](docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md), [SSM Session Manager 문제 해결](docs/SSM_SESSION_MANAGER_TROUBLESHOOTING_ko.md)을 따릅니다.
