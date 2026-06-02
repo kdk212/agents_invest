@@ -1,4 +1,5 @@
 from runtime import evaluate_startup_safety, load_runtime_settings
+from runtime.preflight import main as preflight_main
 
 
 def test_paper_mode_is_default_and_allowed():
@@ -60,3 +61,19 @@ def test_invalid_risk_limits_block_startup():
 
     assert not safety.allowed
     assert len(safety.reasons) == 3
+
+
+def test_preflight_passes_in_default_paper_mode(monkeypatch):
+    for key in ["APP_ENV", "TRADING_MODE", "KILL_SWITCH", "PAPER_VALIDATION_APPROVED"]:
+        monkeypatch.delenv(key, raising=False)
+
+    assert preflight_main(["--json"]) == 0
+
+
+def test_preflight_fails_when_live_without_approval(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("TRADING_MODE", "live")
+    monkeypatch.setenv("PAPER_VALIDATION_APPROVED", "false")
+    monkeypatch.setenv("KILL_SWITCH", "false")
+
+    assert preflight_main(["--json"]) == 2
