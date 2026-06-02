@@ -83,7 +83,8 @@ AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
 /agents-invest/max-positions=10
 /agents-invest/max-same-sector=3
 /agents-invest/max-sector-weight-pct=30.0
-/agents-invest/min-buy-score=60.0
+/agents-invest/min-buy-score=7.0
+/agents-invest/min-profit-score=60.0
 /agents-invest/min-risk-reward=1.2
 /agents-invest/max-expected-loss-pct=7.0
 ```
