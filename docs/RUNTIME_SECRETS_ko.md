@@ -2,6 +2,8 @@
 
 `agents_invest`는 비밀값 원문을 로그에 출력하지 않습니다. 로컬에서는 env 파일을 읽고, AWS EC2에서는 Parameter Store의 SecureString 값을 읽어 표준 환경변수로 올립니다.
 
+비밀값을 처음 입력하거나 수정하는 절차는 [OpenAI/KIS/Telegram 비밀값 입력](RUNTIME_SECRET_INPUT_ko.md)을 따릅니다.
+
 ## 로컬 실행
 
 기본 경로는 `config/runtime.env`입니다.
@@ -13,6 +15,12 @@ KIS_APP_SECRET=...
 KIS_ACCOUNT_NO=...
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
+```
+
+전용 도구로 로컬 파일에 입력할 수 있습니다.
+
+```bash
+python scripts/configure_runtime_secrets.py --target local
 ```
 
 기본 경로를 쓰기 어려우면 `AGENTS_INVEST_ENV_FILE`로 별도 파일을 지정합니다.
@@ -32,7 +40,13 @@ SSM_PARAMETER_PREFIX=/agents-invest
 AWS_REGION=ap-southeast-2
 ```
 
-이 상태에서 런타임은 다음 SecureString 값을 읽어 환경변수로 주입합니다.
+그 다음 SecureString 값을 저장합니다.
+
+```bash
+python scripts/configure_runtime_secrets.py --target ssm --region ap-southeast-2
+```
+
+런타임은 다음 SecureString 값을 읽어 환경변수로 주입합니다.
 
 ```text
 /agents-invest/openai/api-key      -> OPENAI_API_KEY
