@@ -43,7 +43,7 @@ def select_final_tickers():
 def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, monkeypatch):
     target = tmp_path / "stock_tracking_agent.py"
     target.write_text(
-        """
+        '''
 from cores.utils import parse_llm_json
 
 
@@ -113,7 +113,7 @@ async def run(self, trigger_results_file: str = None):
                         'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
                         'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
                     }
-""".lstrip(),
+'''.lstrip(),
         encoding="utf-8",
     )
     monkeypatch.setattr(patcher, "STOCK_TRACKING", target)
