@@ -1,6 +1,6 @@
 # AWS 콘솔 설정 체크리스트
 
-이 체크리스트는 `agents_invest`를 AWS `ap-southeast-2`에서 24시간 paper 모드로 실행하기 위해 사용자가 콘솔에서 확인하거나 설정해야 하는 항목입니다.
+이 체크리스트는 `agents_invest`를 AWS `ap-southeast-2`에서 24시간 paper 모드로 실행하기 위해 콘솔에서 확인하거나 설정해야 하는 항목입니다.
 
 ## 1. EC2
 
@@ -67,7 +67,7 @@ setup 권한은 계속 붙여둘 필요가 없습니다.
 Systems Manager > Parameter Store
 ```
 
-스크립트로 기본값을 만들 수 있습니다.
+기본값 생성:
 
 ```bash
 AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
@@ -100,7 +100,13 @@ AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
 /agents-invest/telegram/chat-id
 ```
 
-`CHANGE_ME` 값은 실제 값으로 바꾸고, GitHub에는 절대 커밋하지 않습니다.
+Telegram 값은 다음 도구로 입력할 수 있습니다.
+
+```bash
+python scripts/configure_telegram.py --target ssm --region ap-southeast-2
+```
+
+OpenAI/KIS 키는 원문을 채팅이나 GitHub에 붙여넣지 말고, AWS 콘솔의 Parameter Store 또는 안전한 설정 도구로만 저장합니다. `CHANGE_ME` 값은 실제 값으로 바꾼 뒤 GitHub에는 절대 커밋하지 않습니다.
 
 ## 4. 비상정지
 
@@ -122,6 +128,9 @@ sudo apt-get install -y git
 
 git clone https://github.com/kdk212/agents_invest.git
 cd agents_invest
+
+AWS_REGION=ap-southeast-2 bash deploy/aws/put_default_parameters.sh
+python scripts/configure_telegram.py --target ssm --region ap-southeast-2
 
 sudo REPO_URL=https://github.com/kdk212/agents_invest.git \
   AWS_REGION=ap-southeast-2 \
@@ -177,7 +186,7 @@ ENABLE_SSM_SETTINGS=true
 
 ## 7. 내가 확인해야 할 정보
 
-작업을 이어가기 위해 사용자가 알려주면 좋은 정보입니다.
+작업을 이어가기 위해 사용자가 알려주면 좋은 정보입니다. 비밀값 원문은 알려주지 않아도 됩니다.
 
 - EC2를 만들었는지 여부
 - EC2 OS가 Ubuntu인지 여부
