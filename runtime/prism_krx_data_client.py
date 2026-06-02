@@ -9,22 +9,28 @@ into the imported ``prism-insight/`` checkout as ``krx_data_client.py``.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 from functools import lru_cache
 from typing import Any
 
 import pandas as pd
 from pykrx import stock
 
-_MAX_BUSINESS_DAY_SEARCH_DAYS = 3650
+_MAX_BUSINESS_DAY_SEARCH_DAYS = 45
 
 
 def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> str:
     """Return the nearest KRX date that actually has public OHLCV data.
 
     pykrx's own nearest-day helper can raise ``IndexError`` when the target date
-    has no nearby rows. PRISM may ask using the server's current date, so this
-    shim searches directly for a date whose OHLCV response is non-empty.
+    has no nearby rows. This shim searches a bounded range and fails quickly so
+    the 24h service does not appear frozen. For paper catch-up runs, set
+    ``AGENTS_INVEST_FALLBACK_TRADE_DATE=YYYYMMDD``.
     """
+    fallback_date = os.getenv("AGENTS_INVEST_FALLBACK_TRADE_DATE", "").strip()
+    if fallback_date:
+        return fallback_date
+
     base = _parse_date(target_date)
     step = -1 if prev else 1
     for offset in range(0, _MAX_BUSINESS_DAY_SEARCH_DAYS + 1):
@@ -38,12 +44,18 @@ def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> s
             continue
 
     try:
-        return str(stock.get_nearest_business_day_in_a_week(target_date, prev=prev))
-    except Exception as exc:
-        direction = "previous" if prev else "next"
-        raise RuntimeError(
-            f"Could not find {direction} KRX business day with public OHLCV data near {target_date}"
-        ) from exc
+        nearest = str(stock.get_nearest_business_day_in_a_week(target_date, prev=prev))
+        if nearest:
+            return nearest
+    except Exception:
+        pass
+
+    direction = "previous" if prev else "next"
+    raise RuntimeError(
+        f"Could not find {direction} KRX business day with public OHLCV data near {target_date} "
+        f"within {_MAX_BUSINESS_DAY_SEARCH_DAYS} days. "
+        "Set AGENTS_INVEST_FALLBACK_TRADE_DATE=YYYYMMDD to run paper mode with a known data date."
+    )
 
 
 def get_market_ohlcv_by_ticker(date: str, market: str = "ALL", *args: Any, **kwargs: Any) -> pd.DataFrame:
