@@ -149,6 +149,12 @@ echo "Done. Wait 2-5 minutes, then check EC2 > Connect > Session Manager."
 Ping status: Online
 ```
 
+실행 후 CloudShell에서 바로 확인하려면 아래 문서를 사용합니다.
+
+```text
+docs/CLOUDSHELL_VERIFY_SSM_READY_ko.md
+```
+
 ## 실패했을 때 오류 의미
 
 CloudShell 출력의 마지막 오류 20-40줄만 전달하면 됩니다. 자주 나오는 오류는 아래처럼 해석합니다.
