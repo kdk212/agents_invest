@@ -10,10 +10,34 @@ AWS_REGION="${AWS_REGION:-ap-southeast-2}"
 RUNTIME_MODE="${RUNTIME_MODE:-paper}"
 ENABLE_SSM_SETTINGS="${ENABLE_SSM_SETTINGS:-true}"
 SSM_PARAMETER_PREFIX="${SSM_PARAMETER_PREFIX:-/agents-invest}"
+DASHBOARD_PUBLIC_URL="${DASHBOARD_PUBLIC_URL:-}"
 DNF_EXTRA_ARGS="${DNF_EXTRA_ARGS:---allowerasing}"
 
 step() {
   printf '\n==> %s\n' "$1"
+}
+
+metadata_value() {
+  local path="$1"
+  local token=""
+  token="$(curl -fsS -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null || true)"
+  if [ -n "$token" ]; then
+    curl -fsS -H "X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null || true
+  else
+    curl -fsS "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null || true
+  fi
+}
+
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  local file="$3"
+  if grep -q "^$key=" "$file"; then
+    sed -i "s#^$key=.*#$key=$value#" "$file"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$file"
+  fi
 }
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -88,14 +112,23 @@ step "Create runtime env if missing"
 mkdir -p "$APP_DIR/config"
 if [ ! -f "$APP_DIR/config/runtime.env" ]; then
   cp "$APP_DIR/config/runtime.example.env" "$APP_DIR/config/runtime.env"
-  sed -i "s/^AWS_REGION=.*/AWS_REGION=$AWS_REGION/" "$APP_DIR/config/runtime.env"
-  sed -i "s/^APP_ENV=.*/APP_ENV=$RUNTIME_MODE/" "$APP_DIR/config/runtime.env"
-  sed -i "s/^TRADING_MODE=.*/TRADING_MODE=$RUNTIME_MODE/" "$APP_DIR/config/runtime.env"
-  sed -i "s/^ENABLE_SSM_SETTINGS=.*/ENABLE_SSM_SETTINGS=$ENABLE_SSM_SETTINGS/" "$APP_DIR/config/runtime.env"
-  sed -i "s#^SSM_PARAMETER_PREFIX=.*#SSM_PARAMETER_PREFIX=$SSM_PARAMETER_PREFIX#" "$APP_DIR/config/runtime.env"
-  chown "$APP_USER:$APP_USER" "$APP_DIR/config/runtime.env"
-  chmod 600 "$APP_DIR/config/runtime.env"
 fi
+if [ -z "$DASHBOARD_PUBLIC_URL" ]; then
+  public_ip="$(metadata_value public-ipv4)"
+  if [ -n "$public_ip" ]; then
+    DASHBOARD_PUBLIC_URL="http://$public_ip/"
+  fi
+fi
+set_env_value AWS_REGION "$AWS_REGION" "$APP_DIR/config/runtime.env"
+set_env_value APP_ENV "$RUNTIME_MODE" "$APP_DIR/config/runtime.env"
+set_env_value TRADING_MODE "$RUNTIME_MODE" "$APP_DIR/config/runtime.env"
+set_env_value ENABLE_SSM_SETTINGS "$ENABLE_SSM_SETTINGS" "$APP_DIR/config/runtime.env"
+set_env_value SSM_PARAMETER_PREFIX "$SSM_PARAMETER_PREFIX" "$APP_DIR/config/runtime.env"
+if [ -n "$DASHBOARD_PUBLIC_URL" ]; then
+  set_env_value DASHBOARD_PUBLIC_URL "$DASHBOARD_PUBLIC_URL" "$APP_DIR/config/runtime.env"
+fi
+chown "$APP_USER:$APP_USER" "$APP_DIR/config/runtime.env"
+chmod 600 "$APP_DIR/config/runtime.env"
 
 step "Install systemd service"
 cp "$APP_DIR/deploy/systemd/agents-invest.service.example" /etc/systemd/system/agents-invest.service
@@ -114,6 +147,9 @@ sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/p
 cat <<EOF
 
 Bootstrap complete for Amazon Linux.
+
+Dashboard URL:
+  ${DASHBOARD_PUBLIC_URL:-not detected}
 
 Next commands:
   sudo systemctl start agents-invest
