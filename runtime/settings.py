@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from .ssm import load_ssm_parameter_overrides
 
 DEFAULT_RUNTIME_ENV_FILE = Path("config/runtime.env")
+RUNTIME_ENV_FILE_ENV = "AGENTS_INVEST_ENV_FILE"
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,8 @@ def load_runtime_settings(
     settings_source = "env"
 
     if env is None:
-        values = load_runtime_env_file(env_file, errors=settings_errors)
+        selected_env_file = select_runtime_env_file(os.environ, env_file)
+        values = load_runtime_env_file(selected_env_file, errors=settings_errors)
         if values:
             settings_source = "env_file+env"
             apply_runtime_env_defaults(values)
@@ -101,6 +103,14 @@ def load_runtime_settings(
         settings_source=settings_source,
         settings_errors=tuple(settings_errors),
     )
+
+
+def select_runtime_env_file(
+    env: Mapping[str, str],
+    fallback: str | Path | None = DEFAULT_RUNTIME_ENV_FILE,
+) -> str | Path | None:
+    explicit_path = str(env.get(RUNTIME_ENV_FILE_ENV, "")).strip()
+    return explicit_path or fallback
 
 
 def load_runtime_env_file(
