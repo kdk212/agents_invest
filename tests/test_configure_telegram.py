@@ -7,6 +7,7 @@ from scripts.configure_telegram import (
     collect_telegram_values,
     merge_env_text,
     parameter_name,
+    put_telegram_parameters,
 )
 
 
@@ -48,6 +49,41 @@ def test_collect_values_non_interactive_reads_env_values() -> None:
         "TELEGRAM_BOT_TOKEN": "token-value",
         "TELEGRAM_CHAT_ID": "12345",
     }
+
+
+def test_put_telegram_parameters_writes_secure_parameters() -> None:
+    class FakeSsmClient:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str | bool]] = []
+
+        def put_parameter(self, **kwargs: str | bool) -> None:
+            self.calls.append(kwargs)
+
+    client = FakeSsmClient()
+
+    put_telegram_parameters(
+        {
+            "TELEGRAM_BOT_TOKEN": "token-value",
+            "TELEGRAM_CHAT_ID": "12345",
+        },
+        prefix="agents-invest",
+        client=client,
+    )
+
+    assert client.calls == [
+        {
+            "Name": "/agents-invest/telegram/bot-token",
+            "Type": "SecureString",
+            "Value": "token-value",
+            "Overwrite": True,
+        },
+        {
+            "Name": "/agents-invest/telegram/chat-id",
+            "Type": "SecureString",
+            "Value": "12345",
+            "Overwrite": True,
+        },
+    ]
 
 
 def test_parameter_name_normalizes_prefix() -> None:
