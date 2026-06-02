@@ -11,12 +11,13 @@ from __future__ import annotations
 import datetime as _dt
 import os
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from pykrx import stock
 
 _MAX_BUSINESS_DAY_SEARCH_DAYS = 45
+_MARKETS_FOR_ALL = ("KOSPI", "KOSDAQ", "KONEX")
 
 
 def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> str:
@@ -37,7 +38,7 @@ def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> s
         candidate = base + _dt.timedelta(days=step * offset)
         date_text = candidate.strftime("%Y%m%d")
         try:
-            df = stock.get_market_ohlcv_by_ticker(date_text, market="ALL")
+            df = _fetch_by_market(stock.get_market_ohlcv_by_ticker, date_text, market="ALL")
             if df is not None and not df.empty:
                 return date_text
         except Exception:
@@ -59,7 +60,7 @@ def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> s
 
 
 def get_market_ohlcv_by_ticker(date: str, market: str = "ALL", *args: Any, **kwargs: Any) -> pd.DataFrame:
-    df = stock.get_market_ohlcv_by_ticker(date, market=market, *args, **kwargs)
+    df = _fetch_by_market(stock.get_market_ohlcv_by_ticker, date, market=market, *args, **kwargs)
     return _normalize_ohlcv_ticker_frame(df)
 
 
@@ -76,7 +77,7 @@ def get_market_ohlcv_by_date(
 
 
 def get_market_cap_by_ticker(date: str, market: str = "ALL", *args: Any, **kwargs: Any) -> pd.DataFrame:
-    df = stock.get_market_cap_by_ticker(date, market=market, *args, **kwargs)
+    df = _fetch_by_market(stock.get_market_cap_by_ticker, date, market=market, *args, **kwargs)
     return _normalize_market_cap_frame(df)
 
 
@@ -86,6 +87,30 @@ def get_market_ticker_name(ticker: str) -> str:
         return str(stock.get_market_ticker_name(ticker))
     except Exception:
         return str(ticker)
+
+
+def _fetch_by_market(fetcher: Callable[..., pd.DataFrame], *args: Any, market: str = "ALL", **kwargs: Any) -> pd.DataFrame:
+    if market and market.upper() != "ALL":
+        return fetcher(*args, market=market, **kwargs)
+
+    frames: list[pd.DataFrame] = []
+    errors: list[str] = []
+    for market_name in _MARKETS_FOR_ALL:
+        try:
+            df = fetcher(*args, market=market_name, **kwargs)
+        except Exception as exc:
+            errors.append(f"{market_name}: {exc.__class__.__name__}: {exc}")
+            continue
+        if df is not None and not df.empty:
+            frames.append(df)
+
+    if frames:
+        combined = pd.concat(frames, axis=0)
+        return combined[~combined.index.duplicated(keep="first")]
+
+    if errors:
+        raise RuntimeError("pykrx market fetch failed for all markets: " + " | ".join(errors[-3:]))
+    return pd.DataFrame()
 
 
 def _normalize_ohlcv_ticker_frame(df: pd.DataFrame) -> pd.DataFrame:
