@@ -1,4 +1,4 @@
-"""Verify that PRISM-INSIGHT and optimization add-ons are present.
+"""Verify that PRISM-INSIGHT and optimization add-ons are present and wired.
 
 Usage:
     python scripts/check_integration.py
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print_report(result)
 
-    return 0 if result["ready_for_adapter_wiring"] else 2
+    return 0 if result["fully_wired"] else 2
 
 
 def build_report() -> dict[str, object]:
@@ -64,6 +64,9 @@ def build_report() -> dict[str, object]:
     upstream_missing = missing_paths(EXPECTED_UPSTREAM_FILES)
     agent_paths_found = [path for path in LIKELY_AGENT_PATHS if (ROOT / path).exists()]
     patch_status = marker_status(PATCH_MARKERS)
+
+    ready_for_adapter_wiring = not root_missing and not upstream_missing
+    fully_wired = bool(ready_for_adapter_wiring and all(patch_status.values()))
 
     return {
         "repo_root": str(ROOT),
@@ -73,8 +76,8 @@ def build_report() -> dict[str, object]:
         "upstream_missing": upstream_missing,
         "agent_paths_found": agent_paths_found,
         "patch_status": patch_status,
-        "ready_for_adapter_wiring": not root_missing and not upstream_missing,
-        "fully_wired": bool(not root_missing and not upstream_missing and all(patch_status.values())),
+        "ready_for_adapter_wiring": ready_for_adapter_wiring,
+        "fully_wired": fully_wired,
         "next_steps": next_steps(root_missing, upstream_missing, patch_status),
     }
 
