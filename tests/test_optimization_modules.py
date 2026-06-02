@@ -1,3 +1,7 @@
+from optimization.adapters import (
+    apply_risk_governor_to_scenario,
+    enrich_candidates_with_profit_scores,
+)
 from optimization.paper_validator import PaperTrade, PaperTradingValidator
 from optimization.profit_scoring import ProfitScoreInput, ProfitScoringEngine
 from optimization.risk_governor import (
@@ -92,6 +96,89 @@ def test_risk_governor_approves_clean_candidate():
     assert decision.approved
     assert decision.action == "entry"
     assert decision.max_position_weight_pct > 0
+
+
+def test_adapter_enriches_and_sorts_candidates():
+    candidates = [
+        {
+            "code": "000001",
+            "name": "약한후보",
+            "technical_score": 45,
+            "flow_score": 40,
+            "financial_score": 35,
+            "sector_score": 30,
+            "expected_return_pct": 5,
+            "expected_loss_pct": 8,
+        },
+        {
+            "code": "000002",
+            "name": "강한후보",
+            "technical_score": 84,
+            "flow_score": 80,
+            "financial_score": 72,
+            "sector_score": 82,
+            "news_score": 75,
+            "market_score": 78,
+            "trigger_score": 74,
+            "volume_score": 90,
+            "expected_return_pct": 15,
+            "expected_loss_pct": 5,
+        },
+    ]
+
+    enriched = enrich_candidates_with_profit_scores(candidates)
+
+    assert enriched[0]["code"] == "000002"
+    assert enriched[0]["profit_score"] > enriched[1]["profit_score"]
+    assert "expected_value" in enriched[0]
+    assert enriched[0]["profit_score_reasons"]
+
+
+def test_adapter_applies_risk_governor_to_scenario():
+    scenario = {
+        "decision": "entry",
+        "buy_score": 8.4,
+        "profit_score": 80,
+        "expected_value": 3.2,
+        "expected_loss_pct": 5,
+        "risk_reward_ratio": 2.0,
+        "position_weight_pct": 15,
+    }
+    candidate = {"code": "000002", "name": "강한후보", "sector": "반도체"}
+    portfolio = {
+        "holding_count": 3,
+        "max_positions": 10,
+        "sector_position_count": 1,
+        "same_sector_weight_pct": 10,
+        "cash_pct": 40,
+    }
+    market = {"market_regime": "moderate_bull", "index_change_pct": 0.3}
+
+    updated = apply_risk_governor_to_scenario(scenario, candidate, portfolio, market)
+
+    assert updated["decision"] == "entry"
+    assert updated["risk_governor"]["approved"]
+    assert 0 < updated["position_weight_pct"] <= 12
+
+
+def test_adapter_blocks_scenario_when_market_crashes():
+    updated = apply_risk_governor_to_scenario(
+        scenario={
+            "decision": "entry",
+            "buy_score": 9,
+            "profit_score": 82,
+            "expected_value": 4,
+            "expected_loss_pct": 4,
+            "risk_reward_ratio": 2.5,
+        },
+        candidate={"code": "000003", "name": "급락장후보", "sector": "바이오"},
+        portfolio={"holding_count": 2, "max_positions": 10, "cash_pct": 50},
+        market={"market_regime": "moderate_bear", "index_change_pct": -3.0},
+    )
+
+    assert updated["decision"] == "no_entry"
+    assert not updated["risk_governor"]["approved"]
+    assert any("시장 급락" in reason for reason in updated["risk_governor_reasons"])
 
 
 def test_paper_validator_rejects_too_few_trades():
