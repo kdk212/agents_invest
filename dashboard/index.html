@@ -67,10 +67,10 @@
     <section class="layout">
       <article class="panel">
         <div class="panel-head">
-          <h2>성과 피드백</h2>
-          <span>paper 결과 기반</span>
+          <h2>지금 해야 할 일</h2>
+          <span>현재 병목</span>
         </div>
-        <div class="feedback-grid" id="feedbackGrid"></div>
+        <div class="next-actions" id="nextActions"></div>
       </article>
 
       <article class="panel actions">
@@ -79,15 +79,25 @@
           <span>다음 액션</span>
         </div>
         <a href="https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml" target="_blank" rel="noreferrer">PRISM 통합 실행</a>
+        <a href="https://github.com/kdk212/agents_invest/blob/main/docs/NEXT_STEPS_ko.md" target="_blank" rel="noreferrer">현재 다음 단계</a>
         <a href="https://github.com/kdk212/agents_invest/issues/1" target="_blank" rel="noreferrer">체크리스트 이슈</a>
-        <a href="https://github.com/kdk212/agents_invest" target="_blank" rel="noreferrer">GitHub 저장소</a>
         <a href="https://ap-southeast-2.console.aws.amazon.com/console/home?region=ap-southeast-2" target="_blank" rel="noreferrer">AWS 콘솔</a>
       </article>
     </section>
 
-    <section class="notice" aria-label="주의">
-      <strong>주의</strong>
-      <p>이 대시보드는 수익을 보장하지 않습니다. 실계좌 자동매매는 PRISM 통합, paper 검증, Telegram 알림, Kill Switch, RiskGovernor 확인이 끝난 뒤에만 검토합니다.</p>
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>성과 피드백</h2>
+          <span>paper 결과 기반</span>
+        </div>
+        <div class="feedback-grid" id="feedbackGrid"></div>
+      </article>
+
+      <article class="notice" aria-label="주의">
+        <strong>주의</strong>
+        <p>이 대시보드는 수익을 보장하지 않습니다. 실계좌 자동매매는 PRISM 통합, paper 검증, Telegram 알림, Kill Switch, RiskGovernor 확인이 끝난 뒤에만 검토합니다.</p>
+      </article>
     </section>
   </main>
 
