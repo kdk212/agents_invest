@@ -193,18 +193,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = _run_cycle(args, settings=settings, secret_result=secret_result, safety=safety)
         if result != 0:
-            _write_runtime_status(
-                dashboard_dir,
-                status="prism_batch_cycle_failed",
-                settings=settings,
-                secret_result=secret_result,
-                safety=safety,
-                prism=prism_status,
-                runtime_ready=True,
-                install_ready=True,
-                last_exit_code=result,
+            retry_sleep = max(60, args.interval_seconds)
+            print(
+                json.dumps(
+                    {
+                        "status": "prism_batch_cycle_failed_waiting_retry",
+                        "exit_code": result,
+                        "retry_in_seconds": retry_sleep,
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
             )
-            return result
+            time.sleep(retry_sleep)
+            continue
         time.sleep(max(60, args.interval_seconds))
 
 
