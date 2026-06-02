@@ -1,34 +1,39 @@
 {
-  "updated_at": "초기 상태",
+  "updated_at": "현재 다음 단계 반영",
   "overall": "warning",
   "trading_mode": "paper",
-  "mode_detail": "초기 운영은 paper 모드 권장",
+  "mode_detail": "live 전환 금지, paper 검증 대기",
   "integration_state": "대기",
-  "integration_detail": "GitHub Actions에서 integrate-prism-insight 실행 필요",
+  "integration_detail": "GitHub Actions integrate-prism-insight 실행 필요",
   "kill_switch": "확인 필요",
-  "kill_switch_detail": "/agents-invest/kill-switch 확인",
+  "kill_switch_detail": "/agents-invest/kill-switch SecureString 확인 전",
   "validation_state": "미검증",
-  "validation_detail": "PaperTradingValidator 통과 전 live 금지",
+  "validation_detail": "PRISM 통합, EC2 설치, paper 거래 검증 필요",
   "timeline": [
     {
       "title": "보완 모듈 준비",
-      "detail": "수익 점수화, 리스크 차단, 성과 피드백 코드 준비",
+      "detail": "수익 점수화, 리스크 차단, 성과 피드백, SSM 비밀값 로딩 준비",
       "state": "done"
     },
     {
+      "title": "AWS Session Manager 복구",
+      "detail": "CloudShell에서 cloudshell_attach_ssm_role.sh 실행 후 EC2 재부팅 필요",
+      "state": "warning"
+    },
+    {
       "title": "PRISM 원본 통합",
-      "detail": "Actions에서 integrate-prism-insight 실행 필요",
+      "detail": "GitHub Actions에서 integrate-prism-insight 수동 실행 필요",
+      "state": "warning"
+    },
+    {
+      "title": "EC2 24시간 paper 설치",
+      "detail": "Session Manager Online 후 bootstrap_ec2_ubuntu.sh와 nginx 대시보드 설치",
       "state": "warning"
     },
     {
       "title": "paper 검증",
-      "detail": "최소 거래 수와 검증 기준 충족 필요",
+      "detail": "충분한 거래 수, Telegram 알림, Kill Switch, RiskGovernor 동작 확인 필요",
       "state": "warning"
-    },
-    {
-      "title": "AWS 24시간 운영",
-      "detail": "EC2 또는 GitHub Pages로 PC 없이 운영 가능",
-      "state": "running"
     },
     {
       "title": "live 전환",
@@ -39,22 +44,27 @@
   "safety_checks": [
     {
       "title": "Kill Switch",
-      "detail": "SSM에서 즉시 신규 실행 차단 가능",
+      "detail": "SSM /agents-invest/kill-switch 값 확인 필요",
       "state": "warning"
     },
     {
       "title": "RiskGovernor",
-      "detail": "주문 직전 포지션/손실/시장 리스크 차단",
+      "detail": "주문 직전 포지션/손실/시장 리스크 차단 모듈 준비됨",
       "state": "done"
     },
     {
       "title": "비밀값",
-      "detail": "OpenAI/KIS/Telegram SecureString 저장 필요",
+      "detail": "OpenAI/KIS/Telegram SecureString 입력 필요",
       "state": "warning"
     },
     {
       "title": "Telegram",
-      "detail": "알림 수신 확인 필요",
+      "detail": "bot token과 chat id 입력 후 수신 확인 필요",
+      "state": "warning"
+    },
+    {
+      "title": "PRISM 통합 PR",
+      "detail": "integrate-prism-insight 브랜치와 draft PR 생성 필요",
       "state": "warning"
     }
   ],
@@ -62,5 +72,22 @@
     "trigger_edge": "대기",
     "sector_edge": "대기",
     "ticker_edge": "대기"
-  }
+  },
+  "next_actions": [
+    {
+      "title": "CloudShell SSM Role 연결",
+      "detail": "docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md의 두 줄 실행",
+      "url": "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md"
+    },
+    {
+      "title": "PRISM 통합 Actions 실행",
+      "detail": "integrate-prism-insight 워크플로우 Run workflow",
+      "url": "https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml"
+    },
+    {
+      "title": "현재 다음 단계",
+      "detail": "AWS, GitHub, EC2 설치 순서 전체 보기",
+      "url": "https://github.com/kdk212/agents_invest/blob/main/docs/NEXT_STEPS_ko.md"
+    }
+  ]
 }
