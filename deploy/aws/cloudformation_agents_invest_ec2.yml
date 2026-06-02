@@ -21,7 +21,7 @@ Parameters:
     Type: String
     Default: ''
     NoEcho: true
-    Description: Optional GitHub token for cloning a private repository. Leave blank only if the repository is public.
+    Description: Optional GitHub token for cloning a private repository. Use a short-lived fine-scoped token and rotate/delete it after bootstrap.
   InstanceType:
     Type: String
     Default: t3.small
@@ -188,16 +188,19 @@ Resources:
           apt-get update
           apt-get install -y git ca-certificates
 
-          repo_url="https://github.com/${GitHubRepoOwner}/${GitHubRepoName}.git"
+          public_repo_url="https://github.com/${GitHubRepoOwner}/${GitHubRepoName}.git"
+          repo_url="$public_repo_url"
           if [ -n "${GitHubToken}" ]; then
             repo_url="https://x-access-token:${GitHubToken}@github.com/${GitHubRepoOwner}/${GitHubRepoName}.git"
           fi
 
           rm -rf /tmp/agents_invest_bootstrap
           git clone --branch "${GitHubBranch}" "$repo_url" /tmp/agents_invest_bootstrap
+          git -C /tmp/agents_invest_bootstrap remote set-url origin "$public_repo_url"
           cd /tmp/agents_invest_bootstrap
 
           REPO_URL="$repo_url" \
+          PUBLIC_REPO_URL="$public_repo_url" \
           APP_BRANCH="${GitHubBranch}" \
           AWS_REGION="${AWS::Region}" \
           RUNTIME_MODE="paper" \
@@ -205,6 +208,7 @@ Resources:
           SSM_PARAMETER_PREFIX="${SsmParameterPrefix}" \
           bash deploy/aws/bootstrap_ec2_ubuntu.sh
 
+          rm -rf /tmp/agents_invest_bootstrap
           cd /opt/agents_invest
           DASHBOARD_PORT="${DashboardPort}" bash deploy/aws/install_dashboard_nginx.sh
           systemctl start agents-invest
