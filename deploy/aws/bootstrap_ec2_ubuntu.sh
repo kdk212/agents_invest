@@ -7,6 +7,8 @@ APP_BRANCH="${APP_BRANCH:-main}"
 APP_USER="${APP_USER:-ubuntu}"
 AWS_REGION="${AWS_REGION:-ap-southeast-2}"
 RUNTIME_MODE="${RUNTIME_MODE:-paper}"
+ENABLE_SSM_SETTINGS="${ENABLE_SSM_SETTINGS:-true}"
+SSM_PARAMETER_PREFIX="${SSM_PARAMETER_PREFIX:-/agents-invest}"
 
 step() {
   printf '\n==> %s\n' "$1"
@@ -53,7 +55,7 @@ fi
 step "Create Python virtual environment"
 sudo -u "$APP_USER" python3 -m venv "$APP_DIR/.venv"
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pip install --upgrade pip
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pip install -e "$APP_DIR[test]"
+sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pip install -e "$APP_DIR[test,aws]"
 
 step "Create runtime env if missing"
 mkdir -p "$APP_DIR/config"
@@ -62,6 +64,8 @@ if [ ! -f "$APP_DIR/config/runtime.env" ]; then
   sed -i "s/^AWS_REGION=.*/AWS_REGION=$AWS_REGION/" "$APP_DIR/config/runtime.env"
   sed -i "s/^APP_ENV=.*/APP_ENV=$RUNTIME_MODE/" "$APP_DIR/config/runtime.env"
   sed -i "s/^TRADING_MODE=.*/TRADING_MODE=$RUNTIME_MODE/" "$APP_DIR/config/runtime.env"
+  sed -i "s/^ENABLE_SSM_SETTINGS=.*/ENABLE_SSM_SETTINGS=$ENABLE_SSM_SETTINGS/" "$APP_DIR/config/runtime.env"
+  sed -i "s#^SSM_PARAMETER_PREFIX=.*#SSM_PARAMETER_PREFIX=$SSM_PARAMETER_PREFIX#" "$APP_DIR/config/runtime.env"
   chown "$APP_USER:$APP_USER" "$APP_DIR/config/runtime.env"
   chmod 600 "$APP_DIR/config/runtime.env"
 fi
@@ -86,5 +90,6 @@ Next commands:
   sudo journalctl -u agents-invest -f
 
 The service starts in paper mode unless you explicitly change config/runtime.env
-and pass startup safety checks.
+and pass startup safety checks. On EC2, ENABLE_SSM_SETTINGS defaults to true so
+/agents-invest/kill-switch can block execution without redeploying.
 EOF
