@@ -1,0 +1,90 @@
+name: prism-import-simple
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_url:
+        description: PRISM-INSIGHT upstream repository URL
+        required: true
+        default: https://github.com/dragon1086/prism-insight.git
+      upstream_branch:
+        description: PRISM-INSIGHT upstream branch
+        required: true
+        default: main
+      target_branch:
+        description: Branch to update with imported upstream
+        required: true
+        default: integrate-prism-insight
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create target branch
+        run: git checkout -B "${{ inputs.target_branch }}"
+
+      - name: Import PRISM upstream
+        env:
+          UPSTREAM_URL: ${{ inputs.upstream_url }}
+          UPSTREAM_BRANCH: ${{ inputs.upstream_branch }}
+          BRANCH_NAME: ${{ inputs.target_branch }}
+        run: bash scripts/integrate_prism_insight.sh
+
+      - name: Patch adapters
+        run: python scripts/patch_prism_adapters.py
+
+      - name: Verify import markers
+        run: |
+          python scripts/check_integration.py
+          python scripts/patch_prism_adapters.py --check
+
+      - name: Commit changes
+        run: |
+          git add prism-insight
+          if [ -n "$(git status --short)" ]; then
+            git commit -m "feat: import PRISM-INSIGHT and wire adapters"
+          else
+            echo "No changes to commit"
+          fi
+
+      - name: Push branch
+        run: git push --force-with-lease origin "${{ inputs.target_branch }}"
+
+      - name: Open draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          body_file="/tmp/prism-import-pr.md"
+          cat > "$body_file" <<'EOF'
+## Summary
+- Imports PRISM-INSIGHT upstream under `prism-insight/`.
+- Applies agents_invest adapter wiring for profit scoring and risk governance.
+- Verifies integration markers and adapter idempotency.
+
+## Before live trading
+- Keep EC2 in paper mode.
+- Enter OpenAI/KIS/Telegram secrets through AWS SSM Parameter Store.
+- Confirm Telegram alerts, strict runtime preflight, paper validation, and kill switch behavior.
+EOF
+          existing_pr="$(gh pr list --head "$TARGET_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --title "Integrate PRISM-INSIGHT upstream" --body-file "$body_file"
+          else
+            gh pr create --draft --base main --head "$TARGET_BRANCH" --title "Integrate PRISM-INSIGHT upstream" --body-file "$body_file"
+          fi
