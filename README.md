@@ -92,13 +92,13 @@ AWS EC2에서는 `ENABLE_SSM_SETTINGS=true`를 켜면 `/agents-invest/kill-switc
 
 ### GitHub Actions에서 실행
 
-로컬 Git 경로 문제가 있으면 GitHub에서 수동 워크플로를 실행합니다.
+로컬 Git 경로 문제가 있으면 GitHub에서 수동 워크플로를 실행합니다. 자세한 화면별 절차는 [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)을 따릅니다.
 
 1. 저장소의 `Actions` 탭으로 이동합니다.
 2. `integrate-prism-insight` 워크플로를 선택합니다.
 3. `Run workflow`를 실행합니다.
-4. 결과 브랜치 `integrate-prism-insight`를 확인합니다.
-5. 테스트가 통과하면 PR 또는 main 병합을 진행합니다.
+4. 결과 브랜치 `integrate-prism-insight`와 자동 생성된 draft PR을 확인합니다.
+5. 테스트가 통과하면 PR 리뷰 후 main 병합을 진행합니다.
 
 자동 패치는 다음 원본 파일에 보완을 연결합니다.
 
@@ -150,6 +150,7 @@ AWS 콘솔에서 직접 확인할 항목은 [AWS 콘솔 설정 체크리스트](
 
 ## 주요 문서
 
+- [GitHub Actions PRISM-INSIGHT 통합 실행](docs/GITHUB_ACTIONS_PRISM_INTEGRATION_ko.md)
 - [Telegram 알림 설정](docs/TELEGRAM_SETUP_ko.md)
 - [런타임 비밀값 로딩](docs/RUNTIME_SECRETS_ko.md)
 - [PRISM-INSIGHT 에이전트별 보완 매트릭스](docs/AGENT_ENHANCEMENT_MATRIX_ko.md)
