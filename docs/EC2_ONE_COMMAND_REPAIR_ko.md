@@ -1,6 +1,6 @@
 # EC2 한 방 복구/점검 명령
 
-EC2 Session Manager 터미널에서 아래만 실행하면 최신 코드 반영, PRISM 원본 복사/패치, 서비스 복구, 테스트, 진단까지 한 번에 진행합니다.
+EC2 Session Manager 터미널에서 아래만 실행하면 최신 코드 반영, PRISM 원본 복사/패치, Python 3.11 가상환경 복구, 서비스 복구, 테스트, 진단까지 한 번에 진행합니다.
 
 ```bash
 cd /opt/agents_invest
@@ -8,7 +8,16 @@ git pull
 sudo RUN_PRISM_ONCE=true bash deploy/aws/repair_and_verify_ec2.sh
 ```
 
-`kospi_kosdaq_stock_server`에서 아래처럼 나와도 괜찮습니다. 현재 Amazon Linux Python 3.9 환경에서는 선택 패키지로 처리합니다.
+실행이 끝난 뒤 상태만 짧게 확인하려면 아래를 실행합니다.
+
+```bash
+cd /opt/agents_invest
+bash scripts/operator_status.sh
+```
+
+이 짧은 상태 출력에서 `FAIL`이 보이면, 전체 긴 로그 대신 `FAIL` 줄과 `operator_status.sh` 출력만 붙여주면 됩니다.
+
+`kospi_kosdaq_stock_server`에서 아래처럼 나와도 괜찮습니다. 현재 이 패키지는 선택 설치로 처리합니다.
 
 ```text
 optional package install skipped: kospi_kosdaq_stock_server
@@ -19,11 +28,22 @@ optional package install skipped: kospi_kosdaq_stock_server
 성공에 가까운 상태라면 출력 중간이나 마지막에 아래 표시가 보입니다.
 
 ```text
+Python 3.11
 ==> Smoke-check PRISM trigger imports
 "ready": true
 
 == HTTP checks ==
 HTTP/1.1 200 OK
+```
+
+짧은 상태 명령에서는 아래가 보이면 좋습니다.
+
+```text
+OK   python: Python 3.11...
+OK   PRISM copy present
+OK   PRISM import smoke check: ready=true
+OK   nginx active
+OK   local dashboard HTTP works
 ```
 
 아래도 보이면 더 좋습니다.
@@ -52,6 +72,12 @@ missing python module: 패키지이름
 
 ```text
 trigger_batch import failed: 에러내용
+```
+
+아래가 보이면 Python 3.11 설치 또는 가상환경 교체가 실패한 상태입니다.
+
+```text
+Python 3.10+ is required
 ```
 
 ## Telegram이 실패하면
