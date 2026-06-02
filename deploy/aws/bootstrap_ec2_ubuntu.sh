@@ -79,10 +79,10 @@ cp "$APP_DIR/deploy/systemd/agents-invest.service.example" /etc/systemd/system/a
 systemctl daemon-reload
 systemctl enable agents-invest.service
 
-step "Run safety checks"
+step "Run install checks"
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m pytest -q "$APP_DIR/tests"
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json
-sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m agents_invest_runner --once
+sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m runtime.preflight --json --allow-missing-secrets
+sudo -u "$APP_USER" "$APP_DIR/.venv/bin/python" -m agents_invest_runner --once --allow-missing-secrets
 
 cat <<EOF
 
@@ -93,7 +93,7 @@ Next commands:
   sudo systemctl status agents-invest --no-pager
   sudo journalctl -u agents-invest -f
 
-The service starts in paper mode unless you explicitly change config/runtime.env
-and pass startup safety checks. On EC2, ENABLE_SSM_SETTINGS defaults to true so
-/agents-invest/kill-switch can block execution without redeploying.
+The install check can pass before OpenAI/KIS/Telegram secrets are entered.
+The runtime service remains conservative: it will block trading work until
+startup safety and secret loading are healthy.
 EOF
