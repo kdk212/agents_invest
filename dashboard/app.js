@@ -4,15 +4,15 @@ const fallbackStatus = {
   trading_mode: "paper",
   mode_detail: "초기 운영은 paper 모드 권장",
   integration_state: "대기",
-  integration_detail: "GitHub Actions에서 integrate-prism-insight 실행 필요",
+  integration_detail: "EC2에서 PRISM 원본 가져오기 필요",
   kill_switch: "확인 필요",
   kill_switch_detail: "/agents-invest/kill-switch 확인",
   validation_state: "미검증",
   validation_detail: "PaperTradingValidator 통과 전 live 금지",
   timeline: [
     { title: "보완 모듈 준비", detail: "수익 점수화, 리스크 차단, 성과 피드백 코드 준비", state: "done" },
-    { title: "AWS Session Manager 복구", detail: "CloudShell 복붙용 명령 실행 필요", state: "warning" },
-    { title: "PRISM 원본 통합", detail: "Actions에서 integrate-prism-insight 실행 필요", state: "warning" },
+    { title: "AWS Session Manager 복구", detail: "EC2 접속 후 설치 명령 실행", state: "warning" },
+    { title: "PRISM 원본 통합", detail: "EC2에서 import_prism_runtime 실행 필요", state: "warning" },
     { title: "paper 검증", detail: "최소 거래 수와 검증 기준 충족 필요", state: "warning" },
     { title: "live 전환", detail: "모든 안전 조건 통과 전까지 금지", state: "blocked" }
   ],
@@ -29,17 +29,24 @@ const fallbackStatus = {
   },
   next_actions: [
     {
-      title: "CloudShell 복붙 명령 실행",
-      detail: "Session Manager Online 전환",
-      url: "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_COPY_PASTE_SSM_ROLE_COMMAND_ko.md"
+      title: "EC2 명령 실행",
+      detail: "PRISM 원본 가져오기, 비밀값 입력, 서비스 시작",
+      url: "https://github.com/kdk212/agents_invest/blob/main/docs/EC2_COMMANDS_QUICK_HELP_ko.md"
     },
     {
-      title: "PRISM 통합 Actions 실행",
-      detail: "integrate-prism-insight 브랜치와 draft PR 생성",
-      url: "https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml"
+      title: "비밀값 입력",
+      detail: "OpenAI, KIS, Telegram 값을 SSM SecureString에 저장",
+      url: "https://github.com/kdk212/agents_invest/blob/main/docs/RUNTIME_SECRET_INPUT_ko.md"
     }
   ]
 };
+
+const resultFiles = {
+  morning: "./prism_latest_morning.json",
+  afternoon: "./prism_latest_afternoon.json",
+};
+let latestResults = { morning: null, afternoon: null };
+let activeResultMode = "morning";
 
 async function loadStatus() {
   try {
@@ -49,6 +56,23 @@ async function loadStatus() {
   } catch (_error) {
     return fallbackStatus;
   }
+}
+
+async function loadJsonOrNull(url) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function loadLatestResults() {
+  const entries = await Promise.all(
+    Object.entries(resultFiles).map(async ([mode, url]) => [mode, await loadJsonOrNull(url)])
+  );
+  return Object.fromEntries(entries);
 }
 
 function setText(id, value) {
@@ -108,9 +132,79 @@ function renderFeedback(feedback) {
   for (const [label, value, detail] of cards) {
     const card = document.createElement("div");
     card.className = "feedback-card";
-    card.innerHTML = `<span class="label">${label}</span><strong>${value}</strong><small>${detail}</small>`;
+    card.innerHTML = `<span class="label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small>`;
     root.appendChild(card);
   }
+}
+
+function renderLatestCandidates() {
+  const root = document.getElementById("candidateList");
+  if (!root) return;
+
+  const result = latestResults[activeResultMode];
+  const candidates = flattenCandidates(result).slice(0, 8);
+  const meta = result?.metadata;
+  setText(
+    "prismResultMeta",
+    meta ? `${labelForMode(meta.trigger_mode || activeResultMode)} · 기준일 ${meta.trade_date || "-"}` : "실행 결과 대기"
+  );
+
+  root.innerHTML = "";
+  if (!candidates.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "아직 표시할 PRISM 후보가 없습니다. EC2 서비스가 한 번 실행되면 여기에 결과가 나타납니다.";
+    root.appendChild(empty);
+    return;
+  }
+
+  for (const candidate of candidates) {
+    const card = document.createElement("article");
+    card.className = "candidate-card";
+    const score = numberText(candidate.profit_score ?? candidate.final_score ?? candidate.agent_fit_score, 2);
+    const change = numberText(candidate.change_rate, 2);
+    card.innerHTML = `
+      <div class="candidate-main">
+        <span class="candidate-code">${escapeHtml(candidate.code || "-")}</span>
+        <strong>${escapeHtml(candidate.name || "이름 없음")}</strong>
+        <small>${escapeHtml(candidate.trigger_type || "PRISM 후보")}</small>
+      </div>
+      <div class="candidate-score">
+        <span>점수</span>
+        <strong>${escapeHtml(score)}</strong>
+      </div>
+      <dl class="candidate-facts">
+        <div><dt>등락</dt><dd>${escapeHtml(change)}%</dd></div>
+        <div><dt>손절</dt><dd>${escapeHtml(numberText(candidate.stop_loss_pct, 2))}%</dd></div>
+        <div><dt>목표</dt><dd>${escapeHtml(priceText(candidate.target_price))}</dd></div>
+      </dl>
+    `;
+    root.appendChild(card);
+  }
+}
+
+function flattenCandidates(result) {
+  if (!result || typeof result !== "object") return [];
+  const rows = [];
+  for (const [triggerType, value] of Object.entries(result)) {
+    if (triggerType === "metadata" || !Array.isArray(value)) continue;
+    for (const item of value) {
+      rows.push({ ...item, trigger_type: triggerType });
+    }
+  }
+  return rows.sort((a, b) => (b.profit_score ?? b.final_score ?? 0) - (a.profit_score ?? a.final_score ?? 0));
+}
+
+function wireResultTabs() {
+  document.querySelectorAll("[data-result-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeResultMode = button.dataset.resultMode || "morning";
+      document.querySelectorAll("[data-result-mode]").forEach((node) => {
+        node.classList.toggle("active", node === button);
+      });
+      renderLatestCandidates();
+    });
+  });
 }
 
 function drawStatusCanvas(status) {
@@ -159,7 +253,37 @@ function render(status) {
   renderList("safetyChecks", status.safety_checks);
   renderNextActions(status.next_actions);
   renderFeedback(status.feedback);
+  renderLatestCandidates();
   drawStatusCanvas(status);
 }
 
-loadStatus().then(render);
+function labelForMode(mode) {
+  return mode === "morning" ? "오전" : mode === "afternoon" ? "오후" : mode || "-";
+}
+
+function numberText(value, digits = 2) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return number.toFixed(digits);
+}
+
+function priceText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+  return Math.round(number).toLocaleString("ko-KR");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+wireResultTabs();
+Promise.all([loadStatus(), loadLatestResults()]).then(([status, results]) => {
+  latestResults = results;
+  render(status);
+});
