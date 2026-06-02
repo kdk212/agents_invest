@@ -15,28 +15,35 @@ from typing import Any
 import pandas as pd
 from pykrx import stock
 
+_MAX_BUSINESS_DAY_SEARCH_DAYS = 3650
+
 
 def get_nearest_business_day_in_a_week(target_date: str, prev: bool = True) -> str:
-    """Return the nearest KRX business day around ``target_date``.
+    """Return the nearest KRX date that actually has public OHLCV data.
 
-    pykrx exposes ``get_nearest_business_day_in_a_week`` directly. A small
-    fallback loop is kept for older pykrx releases or transient empty responses.
+    pykrx's own nearest-day helper can raise ``IndexError`` when the target date
+    has no nearby rows. PRISM may ask using the server's current date, so this
+    shim searches directly for a date whose OHLCV response is non-empty.
     """
+    base = _parse_date(target_date)
+    step = -1 if prev else 1
+    for offset in range(0, _MAX_BUSINESS_DAY_SEARCH_DAYS + 1):
+        candidate = base + _dt.timedelta(days=step * offset)
+        date_text = candidate.strftime("%Y%m%d")
+        try:
+            df = stock.get_market_ohlcv_by_ticker(date_text, market="ALL")
+            if df is not None and not df.empty:
+                return date_text
+        except Exception:
+            continue
+
     try:
         return str(stock.get_nearest_business_day_in_a_week(target_date, prev=prev))
-    except Exception:
-        base = _parse_date(target_date)
-        step = -1 if prev else 1
-        for offset in range(0, 8):
-            candidate = base + _dt.timedelta(days=step * offset)
-            date_text = candidate.strftime("%Y%m%d")
-            try:
-                df = stock.get_market_ohlcv_by_ticker(date_text, market="ALL")
-                if not df.empty:
-                    return date_text
-            except Exception:
-                continue
-        raise
+    except Exception as exc:
+        direction = "previous" if prev else "next"
+        raise RuntimeError(
+            f"Could not find {direction} KRX business day with public OHLCV data near {target_date}"
+        ) from exc
 
 
 def get_market_ohlcv_by_ticker(date: str, market: str = "ALL", *args: Any, **kwargs: Any) -> pd.DataFrame:
