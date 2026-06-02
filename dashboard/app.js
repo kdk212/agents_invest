@@ -11,7 +11,7 @@ const fallbackStatus = {
   validation_detail: "PaperTradingValidator 통과 전 live 금지",
   timeline: [
     { title: "보완 모듈 준비", detail: "수익 점수화, 리스크 차단, 성과 피드백 코드 준비", state: "done" },
-    { title: "AWS Session Manager 복구", detail: "CloudShell에서 SSM Role 연결 스크립트 실행 필요", state: "warning" },
+    { title: "AWS Session Manager 복구", detail: "CloudShell 복붙용 명령 실행 필요", state: "warning" },
     { title: "PRISM 원본 통합", detail: "Actions에서 integrate-prism-insight 실행 필요", state: "warning" },
     { title: "paper 검증", detail: "최소 거래 수와 검증 기준 충족 필요", state: "warning" },
     { title: "live 전환", detail: "모든 안전 조건 통과 전까지 금지", state: "blocked" }
@@ -29,9 +29,9 @@ const fallbackStatus = {
   },
   next_actions: [
     {
-      title: "CloudShell SSM Role 연결",
+      title: "CloudShell 복붙 명령 실행",
       detail: "Session Manager Online 전환",
-      url: "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md"
+      url: "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_COPY_PASTE_SSM_ROLE_COMMAND_ko.md"
     },
     {
       title: "PRISM 통합 Actions 실행",
