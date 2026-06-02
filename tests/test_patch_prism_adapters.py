@@ -23,6 +23,19 @@ def select_final_tickers():
                 scored_df = scored_df.sort_values(\"final_score\", ascending=False)
 
     score_column = \"final_score\" if use_hybrid and trade_date else \"composite_score\"
+
+
+def run_batch(output_file=None):
+    if output_file:
+        for trigger_type, stocks_df in final_results.items():
+            for ticker in stocks_df.index:
+                stock_info = {}
+                if "final_score" in stocks_df.columns:
+                    stock_info["final_score"] = float(stocks_df.loc[ticker, "final_score"])
+
+                # #289: observability - RS + extension signals
+                if "rs_score" in stocks_df.columns:
+                    stock_info["rs_score"] = float(stocks_df.loc[ticker, "rs_score"])
 """.lstrip(),
         encoding="utf-8",
     )
@@ -35,6 +48,9 @@ def select_final_tickers():
     assert "from optimization import enrich_trigger_dataframe_with_profit_scores" in text
     assert "enrich_trigger_dataframe_with_profit_scores(" in text
     assert 'score_column = "profit_score"' in text
+    assert 'stock_info["profit_score"]' in text
+    assert 'stock_info["expected_value"]' in text
+    assert 'stock_info["risk_penalty"]' in text
 
     second = patcher.patch_trigger_batch()
     assert not second.changed
