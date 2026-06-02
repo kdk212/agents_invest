@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from runtime.settings import load_runtime_env_file, load_runtime_settings
+from runtime.settings import load_runtime_env_file, load_runtime_settings, select_runtime_env_file
 
 
 def test_load_runtime_env_file_parses_simple_values(tmp_path) -> None:
@@ -43,3 +43,17 @@ def test_load_runtime_settings_reads_env_file_without_overriding_process_env(tmp
     assert settings.telegram_enabled is False
     assert settings.settings_source == "env_file+env"
     assert os.environ["KILL_SWITCH"] == "true"
+
+
+def test_custom_runtime_env_file_path_from_environment(tmp_path, monkeypatch) -> None:
+    env_file = tmp_path / "custom.env"
+    env_file.write_text("KILL_SWITCH=true\nTELEGRAM_ENABLED=false\n", encoding="utf-8")
+    monkeypatch.setenv("AGENTS_INVEST_ENV_FILE", str(env_file))
+    monkeypatch.delenv("KILL_SWITCH", raising=False)
+    monkeypatch.delenv("TELEGRAM_ENABLED", raising=False)
+
+    settings = load_runtime_settings(include_remote=False)
+
+    assert settings.kill_switch is True
+    assert settings.telegram_enabled is False
+    assert select_runtime_env_file(os.environ) == str(env_file)
