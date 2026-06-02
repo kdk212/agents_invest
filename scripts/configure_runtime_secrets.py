@@ -14,6 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts.configure_telegram import ConfigurationError, merge_env_text, normalize_prefix
 
 DEFAULT_ENV_PATH = Path("config/runtime.env")
