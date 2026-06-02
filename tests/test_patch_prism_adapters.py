@@ -42,80 +42,39 @@ def select_final_tickers():
 
 def test_patch_stock_tracking_wires_risk_governor_and_profit_context(tmp_path, monkeypatch):
     target = tmp_path / "stock_tracking_agent.py"
-    target.write_text(
-        '''
-from cores.utils import parse_llm_json
-
-
-async def _extract_trading_scenario(
-    self,
-    report_content: str,
-    rank_change_msg: str = "",
-    ticker: str = None,
-    sector: str = None,
-    trigger_type: str = "",
-    trigger_mode: str = ""
-):
-    trigger_info_section = ""
-    # Prepare prompt based on language
-    if self.language == "ko":
-        prompt_message = f"""
-        {trigger_info_section}
-        """
-    return {}
-
-
-async def _analyze_report_core(self, pdf_report_path: str):
-    report_content = "report"
-    ticker = "005930"
-    rank_change_msg = ""
-    trigger_info = getattr(self, "trigger_info_map", {}).get(ticker, {})
-    trigger_type = trigger_info.get('trigger_type', '')
-    trigger_mode = trigger_info.get('trigger_mode', '')
-    scenario = await self._extract_trading_scenario(
-        report_content,
-        rank_change_msg,
-        ticker=ticker,
-        sector=None,
-        trigger_type=trigger_type,
-        trigger_mode=trigger_mode
+    source = (
+        "from cores.utils import parse_llm_json\n\n"
+        "async def _extract_trading_scenario(self):\n"
+        "    trigger_info_section = \"\"\n"
+        + patcher.STOCK_TRIGGER_SECTION_ANCHOR
+        + "        prompt_message = f\"\"\"{trigger_info_section}\"\"\"\n"
+        "    return {}\n\n"
+        "async def _analyze_report_core(self):\n"
+        + patcher.STOCK_SCENARIO_MERGE_ANCHOR
+        + "    return raw_decision\n\n"
+        "async def process_reports(self):\n"
+        "    for state in analysis_states:\n"
+        "        analysis_result = state[\"analysis\"]\n"
+        "        ticker = analysis_result.get(\"ticker\")\n"
+        "        company_name = analysis_result.get(\"company_name\")\n"
+        "        current_price = analysis_result.get(\"current_price\", 0)\n"
+        "        scenario = analysis_result.get(\"scenario\", {})\n"
+        "        sector = analysis_result.get(\"sector\", \"Unknown\")\n"
+        "        rank_change_msg = analysis_result.get(\"rank_change_msg\", \"\")\n"
+        "        current_slots = await self._get_current_slots_count()\n"
+        "        buy_score = scenario.get(\"buy_score\", 0)\n"
+        "        min_score = scenario.get(\"min_score\", 0)\n"
+        "        logger.info(f\"Buy score check: {company_name}({ticker}) - Score: {buy_score}\")\n\n"
+        + patcher.STOCK_ANCHOR
+        + "\nasync def run(self):\n"
+        "    for trigger_type, stocks in trigger_data.items():\n"
+        "        if isinstance(stocks, list):\n"
+        "            for stock in stocks:\n"
+        "                ticker = stock.get('code', '')\n"
+        "                if ticker:\n"
+        + patcher.STOCK_TRIGGER_MAP_OLD
     )
-    raw_decision = scenario.get("decision", "No entry")
-    return raw_decision
-
-
-async def process_reports(self):
-    for state in analysis_states:
-        analysis_result = state["analysis"]
-        ticker = analysis_result.get("ticker")
-        company_name = analysis_result.get("company_name")
-        current_price = analysis_result.get("current_price", 0)
-        scenario = analysis_result.get("scenario", {})
-        sector = analysis_result.get("sector", "Unknown")
-        rank_change_msg = analysis_result.get("rank_change_msg", "")
-        current_slots = await self._get_current_slots_count()
-        buy_score = scenario.get("buy_score", 0)
-        min_score = scenario.get("min_score", 0)
-        logger.info(f"Buy score check: {company_name}({ticker}) - Score: {buy_score}")
-
-        if analysis_result.get("decision") == "Enter":
-            buy_success = await self.buy_stock(ticker, company_name, current_price, scenario, rank_change_msg)
-
-
-async def run(self, trigger_results_file: str = None):
-    for trigger_type, stocks in trigger_data.items():
-        if isinstance(stocks, list):
-            for stock in stocks:
-                ticker = stock.get('code', '')
-                if ticker:
-                    self.trigger_info_map[ticker] = {
-                        'trigger_type': trigger_type,
-                        'trigger_mode': trigger_data.get('metadata', {}).get('trigger_mode', ''),
-                        'risk_reward_ratio': stock.get('risk_reward_ratio', 0)
-                    }
-'''.lstrip(),
-        encoding="utf-8",
-    )
+    target.write_text(source, encoding="utf-8")
     monkeypatch.setattr(patcher, "STOCK_TRACKING", target)
 
     result = patcher.patch_stock_tracking()
