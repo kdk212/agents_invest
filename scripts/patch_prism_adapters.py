@@ -36,6 +36,23 @@ TRIGGER_SORT_ANCHOR = """                # Sort by final score
 """
 TRIGGER_SCORE_COLUMN_OLD = '    score_column = "final_score" if use_hybrid and trade_date else "composite_score"'
 TRIGGER_SCORE_COLUMN_NEW = '    score_column = "profit_score" if use_hybrid and trade_date else "composite_score"'
+TRIGGER_OUTPUT_MARKER = 'stock_info["profit_score"]'
+TRIGGER_OUTPUT_ANCHOR = """                    if "final_score" in stocks_df.columns:
+                        stock_info["final_score"] = float(stocks_df.loc[ticker, "final_score"])
+
+"""
+TRIGGER_OUTPUT_PATCH = """                    if "profit_score" in stocks_df.columns:
+                        stock_info["profit_score"] = float(stocks_df.loc[ticker, "profit_score"])
+                    if "expected_value" in stocks_df.columns:
+                        stock_info["expected_value"] = float(stocks_df.loc[ticker, "expected_value"])
+                    if "risk_penalty" in stocks_df.columns:
+                        stock_info["risk_penalty"] = float(stocks_df.loc[ticker, "risk_penalty"])
+                    if "profit_decision_hint" in stocks_df.columns:
+                        stock_info["profit_decision_hint"] = str(stocks_df.loc[ticker, "profit_decision_hint"])
+                    if "profit_score_reasons" in stocks_df.columns:
+                        stock_info["profit_score_reasons"] = str(stocks_df.loc[ticker, "profit_score_reasons"])
+
+"""
 
 STOCK_IMPORT = "from optimization import apply_risk_governor_to_scenario"
 STOCK_TRIGGER_MAP_MARKER = "'profit_score': stock.get('profit_score', 0)"
@@ -227,6 +244,11 @@ def patch_trigger_batch(check: bool = False) -> PatchResult:
 
     if TRIGGER_SCORE_COLUMN_OLD in text:
         text = text.replace(TRIGGER_SCORE_COLUMN_OLD, TRIGGER_SCORE_COLUMN_NEW, 1)
+
+    if TRIGGER_OUTPUT_MARKER not in text:
+        if TRIGGER_OUTPUT_ANCHOR not in text:
+            raise RuntimeError("trigger_batch.py anchor not found for profit-score JSON output patch")
+        text = text.replace(TRIGGER_OUTPUT_ANCHOR, TRIGGER_OUTPUT_ANCHOR + TRIGGER_OUTPUT_PATCH, 1)
 
     changed = text != original
     if changed and not check:
