@@ -65,6 +65,35 @@ FROM candidate_performance_tracker
 WHERE trigger_type IS NOT NULL
 GROUP BY trigger_type;
 
+CREATE VIEW IF NOT EXISTS sector_performance_summary AS
+SELECT
+    sector,
+    COUNT(*) AS sample_count,
+    AVG(return_7d) AS avg_return_7d,
+    AVG(return_14d) AS avg_return_14d,
+    AVG(return_30d) AS avg_return_30d,
+    AVG(CASE WHEN return_14d > 0 THEN 1.0 ELSE 0.0 END) * 100.0 AS win_rate_14d,
+    AVG(max_gain_30d) AS avg_max_gain_30d,
+    AVG(max_drawdown_30d) AS avg_max_drawdown_30d
+FROM candidate_performance_tracker
+WHERE sector IS NOT NULL
+GROUP BY sector;
+
+CREATE VIEW IF NOT EXISTS ticker_recent_performance_summary AS
+SELECT
+    ticker,
+    company_name,
+    COUNT(*) AS sample_count,
+    MAX(selected_at) AS last_selected_at,
+    AVG(return_14d) AS avg_return_14d,
+    AVG(return_30d) AS avg_return_30d,
+    AVG(CASE WHEN return_14d > 0 THEN 1.0 ELSE 0.0 END) * 100.0 AS win_rate_14d,
+    AVG(max_drawdown_30d) AS avg_max_drawdown_30d,
+    SUM(CASE WHEN realized_return < 0 THEN 1 ELSE 0 END) AS realized_loss_count
+FROM candidate_performance_tracker
+WHERE ticker IS NOT NULL
+GROUP BY ticker, company_name;
+
 CREATE VIEW IF NOT EXISTS profit_score_bucket_summary AS
 SELECT
     CASE
