@@ -11,9 +11,9 @@ const fallbackStatus = {
   validation_detail: "PaperTradingValidator 통과 전 live 금지",
   timeline: [
     { title: "보완 모듈 준비", detail: "수익 점수화, 리스크 차단, 성과 피드백 코드 준비", state: "done" },
+    { title: "AWS Session Manager 복구", detail: "CloudShell에서 SSM Role 연결 스크립트 실행 필요", state: "warning" },
     { title: "PRISM 원본 통합", detail: "Actions에서 integrate-prism-insight 실행 필요", state: "warning" },
     { title: "paper 검증", detail: "최소 거래 수와 검증 기준 충족 필요", state: "warning" },
-    { title: "AWS 24시간 운영", detail: "EC2 또는 GitHub Pages로 PC 없이 운영", state: "running" },
     { title: "live 전환", detail: "모든 안전 조건 통과 전까지 금지", state: "blocked" }
   ],
   safety_checks: [
@@ -26,7 +26,19 @@ const fallbackStatus = {
     trigger_edge: "대기",
     sector_edge: "대기",
     ticker_edge: "대기"
-  }
+  },
+  next_actions: [
+    {
+      title: "CloudShell SSM Role 연결",
+      detail: "Session Manager Online 전환",
+      url: "https://github.com/kdk212/agents_invest/blob/main/docs/CLOUDSHELL_ATTACH_SSM_ROLE_ko.md"
+    },
+    {
+      title: "PRISM 통합 Actions 실행",
+      detail: "integrate-prism-insight 브랜치와 draft PR 생성",
+      url: "https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml"
+    }
+  ]
 };
 
 async function loadStatus() {
@@ -62,6 +74,25 @@ function renderList(id, items) {
     body.append(title, detail);
     li.append(dot, body);
     root.appendChild(li);
+  }
+}
+
+function renderNextActions(items) {
+  const root = document.getElementById("nextActions");
+  if (!root) return;
+  root.innerHTML = "";
+  for (const item of items || []) {
+    const action = document.createElement("a");
+    action.className = "next-action";
+    action.href = item.url || "#";
+    action.target = "_blank";
+    action.rel = "noreferrer";
+    const title = document.createElement("strong");
+    title.textContent = item.title || "-";
+    const detail = document.createElement("span");
+    detail.textContent = item.detail || "";
+    action.append(title, detail);
+    root.appendChild(action);
   }
 }
 
@@ -126,6 +157,7 @@ function render(status) {
   if (pulse) pulse.className = `pulse ${status.overall || "warning"}`;
   renderList("timeline", status.timeline);
   renderList("safetyChecks", status.safety_checks);
+  renderNextActions(status.next_actions);
   renderFeedback(status.feedback);
   drawStatusCanvas(status);
 }
