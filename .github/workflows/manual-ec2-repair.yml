@@ -1,0 +1,82 @@
+name: manual-ec2-repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_id:
+        description: EC2 instance ID
+        required: true
+        default: i-08bdbe63b2db7880f
+      aws_region:
+        description: AWS region
+        required: true
+        default: ap-southeast-2
+      run_prism_once:
+        description: Run one PRISM batch cycle after repair
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  APP_DIR: /opt/agents_invest
+
+jobs:
+  repair:
+    name: Repair EC2 runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Send repair command through SSM
+        id: send
+        run: |
+          set -euo pipefail
+          command_id="$(aws ssm send-command \
+            --region "${{ inputs.aws_region }}" \
+            --instance-ids "${{ inputs.instance_id }}" \
+            --document-name AWS-RunShellScript \
+            --comment "agents_invest manual repair from GitHub Actions" \
+            --parameters commands="cd $APP_DIR && git pull && sudo RUN_PRISM_ONCE=${{ inputs.run_prism_once }} bash deploy/aws/repair_and_verify_ec2.sh && bash scripts/operator_status.sh" \
+            --query 'Command.CommandId' \
+            --output text)"
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+          echo "Sent SSM command: $command_id"
+
+      - name: Wait for command result
+        run: |
+          set -euo pipefail
+          command_id="${{ steps.send.outputs.command_id }}"
+          for i in $(seq 1 90); do
+            status="$(aws ssm get-command-invocation \
+              --region "${{ inputs.aws_region }}" \
+              --command-id "$command_id" \
+              --instance-id "${{ inputs.instance_id }}" \
+              --query 'Status' \
+              --output text 2>/dev/null || true)"
+            echo "SSM status: ${status:-waiting}"
+            case "$status" in
+              Success|Cancelled|TimedOut|Failed|Cancelling) break ;;
+            esac
+            sleep 10
+          done
+          aws ssm get-command-invocation \
+            --region "${{ inputs.aws_region }}" \
+            --command-id "$command_id" \
+            --instance-id "${{ inputs.instance_id }}" \
+            --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' \
+            --output json
+          test "$status" = "Success"
