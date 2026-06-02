@@ -61,6 +61,9 @@ step "Verify PRISM runtime wiring"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/check_integration.py"
 sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR' .venv/bin/python scripts/patch_prism_adapters.py --check"
 
+step "Smoke-check PRISM trigger imports"
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && PYTHONPATH='$APP_DIR:$APP_DIR/$PREFIX' .venv/bin/python scripts/check_prism_runtime_imports.py --prism-dir '$APP_DIR/$PREFIX' --json"
+
 step "Refresh dashboard status"
 mkdir -p "$APP_DIR/dashboard"
 touch "$APP_DIR/dashboard/status.json"
@@ -74,6 +77,7 @@ PRISM runtime import complete on EC2.
 Current checks:
   cd $APP_DIR
   python scripts/check_integration.py
+  python scripts/check_prism_runtime_imports.py --json
   bash scripts/diagnose_ec2_runtime.sh
 
 Note: this imports PRISM on the EC2 runtime even if GitHub Actions manual dispatch is unavailable.
