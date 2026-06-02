@@ -19,24 +19,38 @@ from runtime import evaluate_startup_safety, load_runtime_secrets, load_runtime_
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="agents_invest safe runtime runner")
     parser.add_argument("--once", action="store_true", help="run startup checks once and exit")
+    parser.add_argument(
+        "--allow-missing-secrets",
+        action="store_true",
+        help="return success when only runtime secrets are missing; use for install checks, not trading",
+    )
     parser.add_argument("--interval-seconds", type=int, default=60, help="sleep interval for placeholder loop")
     args = parser.parse_args(argv)
 
     settings = load_runtime_settings()
     secret_result = _load_secrets_for_settings(settings)
     safety = evaluate_startup_safety(settings)
+    runtime_ready = _runtime_ready(safety_allowed=safety.allowed, secret_ok=secret_result.ok)
+    install_ready = _install_ready(
+        safety_allowed=safety.allowed,
+        secret_ok=secret_result.ok,
+        allow_missing_secrets=args.allow_missing_secrets,
+    )
     print(
         json.dumps(
             {
                 "settings": _public_settings(settings),
                 "secrets": _public_secret_result(secret_result),
                 "safety": asdict(safety),
+                "runtime_ready": runtime_ready,
+                "install_ready": install_ready,
+                "missing_secrets_allowed": bool(args.allow_missing_secrets),
             },
             ensure_ascii=False,
         )
     )
 
-    if not safety.allowed or not secret_result.ok:
+    if not install_ready:
         return 2
 
     if args.once:
@@ -46,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
         settings = load_runtime_settings()
         secret_result = _load_secrets_for_settings(settings)
         safety = evaluate_startup_safety(settings)
-        if not safety.allowed or not secret_result.ok:
+        if not _runtime_ready(safety_allowed=safety.allowed, secret_ok=secret_result.ok):
             print(
                 json.dumps(
                     {
@@ -73,6 +87,16 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         time.sleep(max(5, args.interval_seconds))
+
+
+def _runtime_ready(*, safety_allowed: bool, secret_ok: bool) -> bool:
+    return safety_allowed and secret_ok
+
+
+def _install_ready(*, safety_allowed: bool, secret_ok: bool, allow_missing_secrets: bool) -> bool:
+    if allow_missing_secrets:
+        return safety_allowed
+    return _runtime_ready(safety_allowed=safety_allowed, secret_ok=secret_ok)
 
 
 def _load_secrets_for_settings(settings):
