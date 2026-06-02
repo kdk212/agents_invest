@@ -22,7 +22,7 @@ run_check() {
 
 app_python() {
   if [ -x "$APP_DIR/.venv/bin/python" ]; then
-    cd "$APP_DIR" && PYTHONPATH="$APP_DIR" "$APP_DIR/.venv/bin/python" "$@"
+    cd "$APP_DIR" && PYTHONPATH="$APP_DIR:$APP_DIR/prism-insight" "$APP_DIR/.venv/bin/python" "$@"
   else
     return 127
   fi
@@ -75,6 +75,7 @@ if [ -x "$APP_DIR/.venv/bin/python" ]; then
   run_check "python version" "$APP_DIR/.venv/bin/python" --version
   run_check "install preflight" app_python -m runtime.preflight --json --allow-missing-secrets
   run_check "strict runtime preflight" app_python -m runtime.preflight --json
+  run_check "PRISM runtime import smoke check" app_python "$APP_DIR/scripts/check_prism_runtime_imports.py" --json
   run_check "dashboard status export" app_python "$APP_DIR/scripts/export_dashboard_status.py" --output "$APP_DIR/dashboard/status.json"
 else
   echo "missing virtualenv python: $APP_DIR/.venv/bin/python"
@@ -105,6 +106,7 @@ if [ -f /var/log/cloud-init-output.log ]; then
 fi
 
 section "Next hint"
+echo "If PRISM smoke check fails with missing python module, paste that module name so dependencies can be added."
 echo "If install preflight passes but strict runtime preflight fails, enter OpenAI/KIS/Telegram SecureString values in SSM."
 echo "If local dashboard works but browser cannot open it, check EC2 Security Group inbound HTTP $DASHBOARD_PORT from your current IP."
 echo "If $APP_DIR is missing, private repo clone likely failed. Recreate stack with GitHubToken or clone manually on EC2."
