@@ -1,0 +1,25 @@
+[Unit]
+Description=agents_invest PRISM-INSIGHT paper/live runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/agents_invest
+EnvironmentFile=/opt/agents_invest/config/runtime.env
+# Replace this command after PRISM-INSIGHT runner is merged.
+ExecStart=/opt/agents_invest/.venv/bin/python -m agents_invest_runner
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+KillSignal=SIGINT
+
+# Basic hardening. Adjust if upstream browser/GUI dependencies require more access.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
