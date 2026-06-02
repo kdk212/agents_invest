@@ -43,6 +43,18 @@ python -m agents_invest_runner --once
 
 ## 원본 가져오기와 자동 연결
 
+### GitHub Actions에서 실행
+
+로컬 Git 경로 문제가 있으면 GitHub에서 수동 워크플로를 실행합니다.
+
+1. 저장소의 `Actions` 탭으로 이동합니다.
+2. `integrate-prism-insight` 워크플로를 선택합니다.
+3. `Run workflow`를 실행합니다.
+4. 결과 브랜치 `integrate-prism-insight`를 확인합니다.
+5. 테스트가 통과하면 PR 또는 main 병합을 진행합니다.
+
+### 로컬에서 실행
+
 Windows PowerShell:
 
 ```powershell
