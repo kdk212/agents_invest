@@ -53,6 +53,22 @@ def write_latest_files(history_items: list[dict[str, Any]]) -> None:
     (DASHBOARD / "prism_latest_afternoon.json").write_text(text, encoding="utf-8")
 
 
+def align_portfolio_dates(portfolio: dict[str, Any]) -> dict[str, Any]:
+    curve = portfolio.get("equity_curve") if isinstance(portfolio.get("equity_curve"), list) else []
+    if not curve:
+        return portfolio
+    last_date = curve[-1].get("date") if isinstance(curve[-1], dict) else None
+    if not last_date:
+        return portfolio
+    portfolio["end_date"] = last_date
+    if len(curve) > 30:
+        portfolio["equity_curve_window"] = "최근 30일"
+    else:
+        start_date = portfolio.get("start_date") or curve[0].get("date")
+        portfolio["equity_curve_window"] = f"{start_date}부터 {last_date}까지"
+    return portfolio
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--portfolio-start", default="2026-06-01")
@@ -81,13 +97,14 @@ def main() -> int:
     calendar = opt.trading_calendar(histories, start - timedelta(days=20), as_of)
 
     portfolio = opt.simulate_portfolio(histories, listing, calendar, start, as_of, top_n, include_history=True)
+    portfolio = align_portfolio_dates(portfolio)
     history_items = portfolio.get("recommendation_history", [])
     write_latest_files(history_items)
 
     (DASHBOARD / "portfolio_status.json").write_text(json.dumps(portfolio, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (DASHBOARD / "recommendation_history.json").write_text(json.dumps({"updated_at": datetime.now().isoformat(timespec="seconds"), "items": history_items}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    print(json.dumps({"ok": True, "top_n": top_n, "dates": [x.get("date") for x in history_items[-5:]], "portfolio_return_pct": portfolio["summary"]["total_return_pct"], "open_positions": portfolio["summary"]["open_positions"], "sell_signal_count": portfolio["summary"]["sell_signal_count"]}, ensure_ascii=False, indent=2))
+    print(json.dumps({"ok": True, "top_n": top_n, "dates": [x.get("date") for x in history_items[-5:]], "portfolio_return_pct": portfolio["summary"]["total_return_pct"], "open_positions": portfolio["summary"]["open_positions"], "sell_signal_count": portfolio["summary"]["sell_signal_count"], "portfolio_end_date": portfolio.get("end_date")}, ensure_ascii=False, indent=2))
     return 0
 
 
