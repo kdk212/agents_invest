@@ -10,6 +10,10 @@ UNIVERSE_SIZE="${UNIVERSE_SIZE:-180}"
 MIN_TOP_N="${MIN_TOP_N:-1}"
 MAX_TOP_N="${MAX_TOP_N:-8}"
 PERIOD_MONTHS="${PERIOD_MONTHS:-24,18,12}"
+STOP_MULTIPLIERS="${STOP_MULTIPLIERS:-1.6,2.0,2.5,3.0}"
+TARGET_PCTS="${TARGET_PCTS:-15,20,25,30}"
+TRAILING_TRIGGER_PCTS="${TRAILING_TRIGGER_PCTS:-8,12,16}"
+TRAILING_DROP_PCTS="${TRAILING_DROP_PCTS:-6,9,12}"
 EXPLAIN_QUERY="${EXPLAIN_QUERY:-001820}"
 STATUS_FILE="dashboard/ai_win_rebuild_status.json"
 VALIDATION_FILE="dashboard/ai_win_validation_latest.json"
@@ -52,18 +56,17 @@ fi
 
 trap 'write_status "failed" "${CURRENT_STEP:-unknown}" "line=$LINENO"' ERR
 
-CURRENT_STEP="Optimize AI WIN strategy"
-run_step "$CURRENT_STEP" "$PYTHON_BIN" scripts/optimize_ai_win_count_and_portfolio.py \
+CURRENT_STEP="Optimize AI WIN grid strategy and write dashboard files"
+run_step "$CURRENT_STEP" "$PYTHON_BIN" scripts/optimize_ai_win_grid_strategy.py \
   --portfolio-start "$PORTFOLIO_START" \
   --universe-size "$UNIVERSE_SIZE" \
   --min-top-n "$MIN_TOP_N" \
   --max-top-n "$MAX_TOP_N" \
-  --period-months "$PERIOD_MONTHS"
-
-CURRENT_STEP="Rebuild dashboard outputs"
-run_step "$CURRENT_STEP" "$PYTHON_BIN" scripts/rebuild_daily_ai_win_dashboard.py \
-  --portfolio-start "$PORTFOLIO_START" \
-  --universe-size "$UNIVERSE_SIZE"
+  --period-months "$PERIOD_MONTHS" \
+  --stop-multipliers "$STOP_MULTIPLIERS" \
+  --target-pcts "$TARGET_PCTS" \
+  --trailing-trigger-pcts "$TRAILING_TRIGGER_PCTS" \
+  --trailing-drop-pcts "$TRAILING_DROP_PCTS"
 
 CURRENT_STEP="Validate dashboard outputs"
 write_status "running" "$CURRENT_STEP"
@@ -88,6 +91,9 @@ for path in ["dashboard/adaptive_strategy.json", "dashboard/portfolio_status.jso
 strategy = json.loads(Path("dashboard/adaptive_strategy.json").read_text(encoding="utf-8"))
 portfolio = json.loads(Path("dashboard/portfolio_status.json").read_text(encoding="utf-8"))
 print("selected_top_n:", strategy.get("selected_top_n"))
+print("stop_multiplier:", strategy.get("stop_multiplier"))
+print("target_return_pct:", strategy.get("target_return_pct"))
+print("take_profit:", strategy.get("take_profit_trigger_pct"), strategy.get("take_profit_trailing_pct"))
 print("best_summary:", strategy.get("best_summary"))
 print("portfolio_summary:", portfolio.get("summary"))
 print("equity_curve_window:", portfolio.get("equity_curve_window"))
