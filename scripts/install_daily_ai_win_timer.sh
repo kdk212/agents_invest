@@ -6,7 +6,7 @@ PYTHON="$APP_DIR/.venv/bin/python"
 
 cat >/etc/systemd/system/agents-invest-daily-ai-win.service <<SERVICE
 [Unit]
-Description=agents_invest daily AI WIN optimization, rebuild, and Telegram summary
+Description=agents_invest daily AI WIN optimization, validation, and Telegram summary
 After=network-online.target
 Wants=network-online.target
 
@@ -14,8 +14,14 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=$APP_DIR
 EnvironmentFile=-$APP_DIR/config/runtime.env
-ExecStart=$PYTHON $APP_DIR/scripts/optimize_ai_win_count_and_portfolio.py --portfolio-start 2026-06-01 --universe-size 180 --min-top-n 1 --max-top-n 8 --period-months 24,18,12,6,3
-ExecStart=$PYTHON $APP_DIR/scripts/rebuild_daily_ai_win_dashboard.py --portfolio-start 2026-06-01 --universe-size 180
+Environment=PYTHON_BIN=$PYTHON
+Environment=PORTFOLIO_START=2026-06-01
+Environment=UNIVERSE_SIZE=180
+Environment=MIN_TOP_N=1
+Environment=MAX_TOP_N=8
+Environment=PERIOD_MONTHS=24,18,12,6,3
+Environment=EXPLAIN_QUERY=001820
+ExecStart=/bin/bash $APP_DIR/scripts/run_ai_win_rebuild_and_validate.sh
 ExecStart=$PYTHON $APP_DIR/scripts/send_dashboard_telegram.py
 SERVICE
 
