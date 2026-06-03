@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">PRISM-INSIGHT + adaptive portfolio</p>
         <h1 id="page-title">수익률 운영 대시보드</h1>
-        <p class="subtitle">PRISM 추천주, 백테스트 최적화, 매도 신호, 누적 추천 비중 기반 paper 포트폴리오 수익률을 한 화면에서 추적합니다.</p>
+        <p class="subtitle">PRISM 추천주, 백테스트 최적화, 매도 신호, 누적 추천 비중 기반 모의 포트폴리오 수익률을 한 화면에서 추적합니다.</p>
       </div>
       <div class="hero-panel" aria-label="포트폴리오 상태 요약">
         <canvas id="statusCanvas" width="320" height="180" aria-hidden="true"></canvas>
@@ -88,10 +88,10 @@
 
     <section class="panel prism-results" aria-labelledby="prism-results-title">
       <div class="panel-head">
-        <h2 id="prism-results-title">최근 PRISM 후보</h2>
+        <h2 id="prism-results-title">최근 추천 후보</h2>
         <span id="prismResultMeta">결과 대기</span>
       </div>
-      <div class="result-tabs" role="tablist" aria-label="PRISM 실행 결과">
+      <div class="result-tabs" role="tablist" aria-label="추천 실행 결과">
         <button type="button" class="tab active" data-result-mode="morning">오전</button>
         <button type="button" class="tab" data-result-mode="afternoon">오후</button>
       </div>
@@ -102,12 +102,12 @@
       <article class="metric compact">
         <span class="label">운영 모드</span>
         <strong id="tradingMode">-</strong>
-        <small id="modeDetail">paper 권장</small>
+        <small id="modeDetail">모의운영 권장</small>
       </article>
       <article class="metric compact">
         <span class="label">PRISM 통합</span>
         <strong id="integrationState">-</strong>
-        <small id="integrationDetail">Actions 실행 필요</small>
+        <small id="integrationDetail">실행 상태 확인</small>
       </article>
       <article class="metric compact">
         <span class="label">비상정지</span>
@@ -117,7 +117,7 @@
       <article class="metric compact">
         <span class="label">검증</span>
         <strong id="validationState">-</strong>
-        <small id="validationDetail">live 전환 전 필수</small>
+        <small id="validationDetail">실거래 전환 전 필수</small>
       </article>
     </section>
 
@@ -133,7 +133,7 @@
       <article class="panel">
         <div class="panel-head">
           <h2>운영 안전장치</h2>
-          <span>live 차단 우선</span>
+          <span>실거래 차단 우선</span>
         </div>
         <ul class="checks" id="safetyChecks"></ul>
       </article>
@@ -143,18 +143,19 @@
       <article class="panel">
         <div class="panel-head">
           <h2>성과 피드백</h2>
-          <span>paper 결과 기반</span>
+          <span>모의운영 결과 기반</span>
         </div>
         <div class="feedback-grid" id="feedbackGrid"></div>
       </article>
 
       <article class="notice" aria-label="주의">
         <strong>주의</strong>
-        <p>이 대시보드는 수익을 보장하지 않습니다. 현재 수익률은 추천주 기반 paper 포트폴리오 가정이며, 실제 거래 전에는 체결 가능성, 거래비용, 슬리피지, 공시와 뉴스 리스크를 별도로 확인해야 합니다.</p>
+        <p>이 대시보드는 수익을 보장하지 않습니다. 현재 수익률은 추천주 기반 모의 포트폴리오 가정이며, 실제 거래 전에는 체결 가능성, 거래비용, 슬리피지, 공시와 뉴스 리스크를 별도로 확인해야 합니다.</p>
       </article>
     </section>
   </main>
 
   <script src="./app.js"></script>
+  <script src="./ops_patch.js"></script>
 </body>
 </html>
