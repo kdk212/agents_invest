@@ -65,11 +65,14 @@ def enrich_pick(item: dict[str, Any], signal_day: date, buy_day: date) -> dict[s
     stop_pct = float(row.get("stop_loss_pct") or 5.0)
     stop = float(row.get("stop_loss_price") or price * (1 - stop_pct / 100))
     target = float(row.get("target_price") or price * 1.3)
+    row["previous_close_price"] = round(price, 0)
+    row["signal_price"] = round(price, 0)
     row["signal_basis"] = "전일 종가 기준"
     row["signal_at"] = f"{signal_day:%Y-%m-%d} 종가"
     row["buy_at"] = f"{buy_day:%Y-%m-%d} 시초가"
     row["entry_plan"] = row["buy_at"]
     row["change_basis"] = "최근 1개월 모멘텀"
+    row["score_basis"] = "AI WIN 점수는 해당일 전체 후보군 내 백분위입니다. 날짜별 최상위 종목은 100점이 될 수 있습니다."
     row["stop_loss_price"] = round(stop, 0)
     row["target_price"] = round(target, 0)
     row["target_return_pct"] = round((target / price - 1) * 100, 2) if price else 0.0
@@ -77,19 +80,7 @@ def enrich_pick(item: dict[str, Any], signal_day: date, buy_day: date) -> dict[s
 
 
 def make_recommendation_payload(signal_day: date, buy_day: date, picks: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "metadata": {
-            "trigger_mode": "daily",
-            "trade_date": buy_day.strftime("%Y%m%d"),
-            "date_label": buy_day.strftime("%Y-%m-%d"),
-            "signal_at": f"{signal_day:%Y-%m-%d} 종가",
-            "buy_at": f"{buy_day:%Y-%m-%d} 시초가",
-            "signal_basis": "전일 종가 기준",
-            "source": "ai_win_daily_public_fallback",
-            "recommendation_policy": "하루 1회 AI WIN 추천",
-        },
-        "AI WIN 일간 추천 후보": [enrich_pick(x, signal_day, buy_day) for x in picks],
-    }
+    return {"metadata": {"trigger_mode": "daily", "trade_date": buy_day.strftime("%Y%m%d"), "date_label": buy_day.strftime("%Y-%m-%d"), "signal_at": f"{signal_day:%Y-%m-%d} 종가", "buy_at": f"{buy_day:%Y-%m-%d} 시초가", "signal_basis": "전일 종가 기준", "source": "ai_win_daily_public_fallback", "recommendation_policy": "하루 1회 AI WIN 추천", "score_basis": "AI WIN 점수는 해당일 전체 후보군 내 백분위입니다."}, "AI WIN 일간 추천 후보": [enrich_pick(x, signal_day, buy_day) for x in picks]}
 
 
 def sell_reason(df, lot: dict[str, Any], day: date) -> tuple[str | None, float]:
@@ -148,17 +139,7 @@ def main() -> int:
             lot["exit"] = exit_price
             lot["exit_date"] = buy_day
             sold_today.add(lot["ticker"])
-            sell_signals_raw.append({
-                "date": buy_day.strftime("%Y-%m-%d"),
-                "ticker": lot["ticker"],
-                "company_name": lot["company_name"],
-                "reason": reason,
-                "entry_date": lot["entry_date"].strftime("%Y-%m-%d"),
-                "signal_date": lot["signal_date"].strftime("%Y-%m-%d"),
-                "entry_price": round(lot["entry"], 2),
-                "exit_price": round(exit_price, 2),
-                "realized_return_pct": f"{(exit_price / lot['entry'] - 1) * 100:.2f}%",
-            })
+            sell_signals_raw.append({"date": buy_day.strftime("%Y-%m-%d"), "ticker": lot["ticker"], "company_name": lot["company_name"], "reason": reason, "entry_date": lot["entry_date"].strftime("%Y-%m-%d"), "signal_date": lot["signal_date"].strftime("%Y-%m-%d"), "entry_price": round(lot["entry"], 2), "exit_price": round(exit_price, 2), "realized_return_pct": f"{(exit_price / lot['entry'] - 1) * 100:.2f}%"})
 
         picks = opt.make_signal_picks(histories, listing, signal_day, args.top_n)
         payload = make_recommendation_payload(signal_day, buy_day, picks)
@@ -170,17 +151,7 @@ def main() -> int:
             entry = open_on_or_after(histories.get(item["code"]), buy_day)
             if not entry:
                 continue
-            lots.append({
-                "ticker": item["code"],
-                "company_name": item.get("name") or item["code"],
-                "entry_date": buy_day,
-                "signal_date": signal_day,
-                "entry": entry,
-                "stop": entry * (1 - float(item.get("stop_loss_pct") or 5.0) / 100),
-                "target": entry * 1.3,
-                "peak": entry,
-                "open": True,
-            })
+            lots.append({"ticker": item["code"], "company_name": item.get("name") or item["code"], "entry_date": buy_day, "signal_date": signal_day, "entry": entry, "stop": entry * (1 - float(item.get("stop_loss_pct") or 5.0) / 100), "target": entry * 1.3, "peak": entry, "open": True})
 
         invested = sum(l["entry"] for l in lots)
         value = 0.0
@@ -228,7 +199,7 @@ def main() -> int:
     elapsed = max((as_of - start).days, 1)
     annualized = math.pow(1 + total_return, 365 / elapsed) - 1 if total_return > -1 else -1
 
-    portfolio = {"updated_at": datetime.now().isoformat(timespec="seconds"), "start_date": start.strftime("%Y-%m-%d"), "end_date": as_of.strftime("%Y-%m-%d"), "price_source": "daily_signal_previous_close_next_open", "rule": f"하루 1회, 전일 종가 기준 상위 {args.top_n}개 추천을 다음 거래일 시초가에 편입", "recommendation_count": len(history_items) * args.top_n, "trade_count": len(lots), "summary": {"total_invested": round(total_cost, 2), "net_value": round(net_value, 2), "realized_cash": round(realized_cash, 2), "realized_pnl": round(realized_cash - realized_cost, 2), "total_return_pct": f"{total_return * 100:.2f}%", "annualized_return_pct": f"{annualized * 100:.2f}%", "open_positions": len(holdings), "open_units": sum(h["units"] for h in holdings), "sell_signal_count": len(sell_signals)}, "holdings": sorted(holdings, key=lambda x: x["market_value"], reverse=True), "sell_signals": sell_signals[-20:], "equity_curve": equity, "recommendation_history": history_items[-30:]}
+    portfolio = {"updated_at": datetime.now().isoformat(timespec="seconds"), "start_date": start.strftime("%Y-%m-%d"), "end_date": as_of.strftime("%Y-%m-%d"), "price_source": "daily_signal_previous_close_next_open", "rule": f"하루 1회, 전일 종가 기준 상위 {args.top_n}개 추천을 다음 거래일 시초가에 편입", "recommendation_count": len(history_items) * args.top_n, "trade_count": len(lots), "summary": {"total_invested": round(total_cost, 2), "net_value": round(net_value, 2), "realized_cash": round(realized_cash, 2), "realized_pnl": round(realized_cash - realized_cost, 2), "total_return_pct": f"{total_return * 100:.2f}%", "annualized_return_pct": f"{annualized * 100:.2f}%", "open_positions": len(holdings), "open_units": sum(h["units"] for h in holdings), "sell_signal_count": len(sell_signals)}, "holdings": sorted(holdings, key=lambda x: x["market_value"], reverse=True), "sell_signals": sell_signals[-20:], "equity_curve": equity[-30:] if len(equity) > 30 else equity, "equity_curve_window": "최근 30일" if len(equity) > 30 else f"{start.strftime('%Y-%m-%d')}부터 현재까지", "recommendation_history": history_items[-30:]}
 
     (DASHBOARD / "portfolio_status.json").write_text(json.dumps(portfolio, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (DASHBOARD / "recommendation_history.json").write_text(json.dumps({"updated_at": datetime.now().isoformat(timespec="seconds"), "items": history_items[-30:]}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
