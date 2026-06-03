@@ -28,6 +28,9 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Check workflow triggers stay manual-only
+        run: python scripts/check_workflow_triggers.py --json
+
       - name: Run runtime preflight without runtime secrets
         run: python -m runtime.preflight --json --allow-missing-secrets
 
