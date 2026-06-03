@@ -5,6 +5,7 @@ APP_DIR="${APP_DIR:-/opt/agents_invest}"
 PYTHON_BIN="$APP_DIR/.venv/bin/python"
 SERVICE_FILE="/etc/systemd/system/agents-invest-adaptive-strategy.service"
 TIMER_FILE="/etc/systemd/system/agents-invest-adaptive-strategy.timer"
+ENV_FILE="$APP_DIR/config/runtime.env"
 
 if [ ! -x "$PYTHON_BIN" ]; then
   echo "FAIL virtualenv python missing: $PYTHON_BIN" >&2
@@ -21,6 +22,7 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=$APP_DIR
 Environment=PYTHONPATH=$APP_DIR:$APP_DIR/prism-insight
+EnvironmentFile=-$ENV_FILE
 ExecStart=$PYTHON_BIN $APP_DIR/scripts/optimize_adaptive_strategy.py --periods 24,18,12 --top-n 7 --universe-size 160
 User=root
 EOF
@@ -30,7 +32,7 @@ sudo tee "$TIMER_FILE" >/dev/null <<EOF
 Description=Run agents_invest adaptive strategy optimizer weekly
 
 [Timer]
-OnCalendar=Asia/Seoul Sun 21:20:00
+OnCalendar=Sun *-*-* 21:20:00
 Persistent=true
 RandomizedDelaySec=600
 
@@ -39,5 +41,6 @@ WantedBy=timers.target
 EOF
 
 sudo systemctl daemon-reload
+sudo systemctl reset-failed agents-invest-adaptive-strategy.timer 2>/dev/null || true
 sudo systemctl enable --now agents-invest-adaptive-strategy.timer
 sudo systemctl list-timers agents-invest-adaptive-strategy.timer --no-pager
