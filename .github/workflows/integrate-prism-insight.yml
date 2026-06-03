@@ -87,16 +87,16 @@ jobs:
         run: |
           body_file="/tmp/prism-integration-pr-body.md"
           cat > "$body_file" <<'EOF'
-## Summary
-- Imports PRISM-INSIGHT upstream under `prism-insight/`.
-- Wires agents_invest profit scoring and risk-governor adapters into the imported agents.
-- Runs pytest, integration marker checks, adapter idempotency check, and install-mode runtime preflight.
+          ## Summary
+          - Imports PRISM-INSIGHT upstream under `prism-insight/`.
+          - Wires agents_invest profit scoring and risk-governor adapters into the imported agents.
+          - Runs pytest, integration marker checks, adapter idempotency check, and install-mode runtime preflight.
 
-## Required human checks before merge
-- Review AGPL-3.0 and upstream license obligations.
-- Confirm `prism-insight/trigger_batch.py`, `stock_tracking_agent.py`, and `cores/agents/trading_agents.py` patches match the intended agent behavior.
-- Keep operation in paper mode until paper validation, Telegram alerts, strict runtime preflight, and Kill Switch checks pass.
-EOF
+          ## Required human checks before merge
+          - Review AGPL-3.0 and upstream license obligations.
+          - Confirm `prism-insight/trigger_batch.py`, `stock_tracking_agent.py`, and `cores/agents/trading_agents.py` patches match the intended agent behavior.
+          - Keep operation in paper mode until paper validation, Telegram alerts, strict runtime preflight, and Kill Switch checks pass.
+          EOF
 
           existing_pr="$(gh pr list --head "$TARGET_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
           if [ -n "$existing_pr" ]; then
