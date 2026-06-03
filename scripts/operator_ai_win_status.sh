@@ -45,10 +45,11 @@ else
 fi
 
 if [ -f "$APP_DIR/dashboard/adaptive_strategy.json" ]; then
-  "$PYTHON" - <<'PY' 2>/dev/null || true
+  APP_DIR="$APP_DIR" "$PYTHON" - <<'PY' 2>/dev/null || true
 import json
+import os
 from pathlib import Path
-p = Path('/opt/agents_invest/dashboard/adaptive_strategy.json')
+p = Path(os.environ['APP_DIR']) / 'dashboard' / 'adaptive_strategy.json'
 data = json.loads(p.read_text(encoding='utf-8'))
 print(f"OK   strategy source: {data.get('source')}")
 print(f"OK   selected top_n: {data.get('selected_top_n')}, period_months: {data.get('selected_period_months')}")
@@ -59,10 +60,11 @@ else
 fi
 
 if [ -f "$APP_DIR/dashboard/portfolio_status.json" ]; then
-  "$PYTHON" - <<'PY' 2>/dev/null || true
+  APP_DIR="$APP_DIR" "$PYTHON" - <<'PY' 2>/dev/null || true
 import json
+import os
 from pathlib import Path
-p = Path('/opt/agents_invest/dashboard/portfolio_status.json')
+p = Path(os.environ['APP_DIR']) / 'dashboard' / 'portfolio_status.json'
 data = json.loads(p.read_text(encoding='utf-8'))
 summary = data.get('summary', {})
 print(f"OK   portfolio: {data.get('start_date')} ~ {data.get('end_date')}, source={data.get('price_source')}")
