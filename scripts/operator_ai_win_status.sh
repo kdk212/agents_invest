@@ -44,6 +44,26 @@ else
   warn "daily AI WIN timer not installed"
 fi
 
+if [ -f "$APP_DIR/dashboard/ai_win_rebuild_status.json" ]; then
+  APP_DIR="$APP_DIR" "$PYTHON" - <<'PY' 2>/dev/null || true
+import json
+import os
+from pathlib import Path
+p = Path(os.environ['APP_DIR']) / 'dashboard' / 'ai_win_rebuild_status.json'
+data = json.loads(p.read_text(encoding='utf-8'))
+status = data.get('status')
+line = f"AI WIN last rebuild: status={status}, step={data.get('step')}, updated={data.get('updated_at')}"
+if status == 'complete':
+    print(f"OK   {line}")
+elif status == 'failed':
+    print(f"FAIL {line}, detail={data.get('detail')}")
+else:
+    print(f"WARN {line}")
+PY
+else
+  warn "AI WIN rebuild status file missing"
+fi
+
 if [ -f "$APP_DIR/dashboard/adaptive_strategy.json" ]; then
   APP_DIR="$APP_DIR" "$PYTHON" - <<'PY' 2>/dev/null || true
 import json
@@ -75,6 +95,22 @@ if curve:
 PY
 else
   warn "portfolio_status.json missing"
+fi
+
+if [ -f "$APP_DIR/dashboard/ai_win_validation_latest.json" ]; then
+  APP_DIR="$APP_DIR" "$PYTHON" - <<'PY' 2>/dev/null || true
+import json
+import os
+from pathlib import Path
+p = Path(os.environ['APP_DIR']) / 'dashboard' / 'ai_win_validation_latest.json'
+data = json.loads(p.read_text(encoding='utf-8'))
+if data.get('ok'):
+    print("OK   saved AI WIN validation: ok=true")
+else:
+    print(f"FAIL saved AI WIN validation: issues={data.get('issues')}")
+PY
+else
+  warn "saved AI WIN validation file missing"
 fi
 
 if [ -x "$PYTHON" ] && [ -f "$APP_DIR/scripts/validate_ai_win_outputs.py" ]; then
