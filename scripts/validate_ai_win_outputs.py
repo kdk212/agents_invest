@@ -11,6 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "dashboard"
 MIN_BACKTEST_MONTHS = 12
+MIN_TESTED_COMBINATIONS = 20
+GENERIC_LABELS = {"AI WIN 전일종가 모멘텀 상위주", "AI WIN 일간 추천 후보"}
 
 
 def main() -> int:
@@ -42,8 +44,8 @@ def main() -> int:
     if not isinstance(portfolio.get("summary"), dict):
         issues.append("portfolio_summary_missing")
 
-    if "intraday_sells" not in str(strategy.get("source", "")):
-        issues.append(f"strategy_source_not_intraday: {strategy.get('source')}")
+    if "grid_optimized" not in str(strategy.get("source", "")):
+        issues.append(f"strategy_source_not_grid_optimized: {strategy.get('source')}")
     if not strategy.get("selected_top_n"):
         issues.append("selected_top_n_missing")
     selected_period = as_int(strategy.get("selected_period_months"))
@@ -51,8 +53,16 @@ def main() -> int:
         issues.append("selected_period_months_missing")
     elif selected_period < MIN_BACKTEST_MONTHS:
         issues.append(f"selected_period_too_short: {selected_period} months; minimum={MIN_BACKTEST_MONTHS}")
-    if not isinstance(strategy.get("tested"), list) or not strategy.get("tested"):
-        warnings.append("backtest_tested_rows_missing")
+    for key in ("stop_multiplier", "target_return_pct", "take_profit_trigger_pct", "take_profit_trailing_pct"):
+        if as_float(strategy.get(key)) is None:
+            issues.append(f"strategy_{key}_missing")
+    tested = strategy.get("tested") if isinstance(strategy.get("tested"), list) else []
+    if len(tested) < MIN_TESTED_COMBINATIONS:
+        issues.append(f"backtest_tested_rows_too_few: {len(tested)}; minimum={MIN_TESTED_COMBINATIONS}")
+    best = strategy.get("best_summary") if isinstance(strategy.get("best_summary"), dict) else {}
+    for key in ("top_n", "stop_multiplier", "target_return_pct", "trailing_trigger_pct", "trailing_drop_pct", "cagr", "mdd"):
+        if best.get(key) is None:
+            issues.append(f"best_summary_{key}_missing")
 
     history_items = history.get("items") if isinstance(history.get("items"), list) else []
     if not history_items:
@@ -67,14 +77,19 @@ def main() -> int:
         else:
             missing_reason = [row for row in candidate_rows if not row.get("recommendation_reason")]
             missing_prev_close = [row for row in candidate_rows if not (row.get("previous_close_price") or row.get("signal_price"))]
+            generic_trigger_rows = [row for row in candidate_rows if str(row.get("trigger_type", "")).strip() in GENERIC_LABELS]
             if missing_reason:
                 issues.append(f"recommendation_reason_missing_count={len(missing_reason)}")
             if missing_prev_close:
                 issues.append(f"previous_close_missing_count={len(missing_prev_close)}")
+            if generic_trigger_rows:
+                warnings.append(f"generic_trigger_type_rows={len(generic_trigger_rows)}")
 
     latest_rows = flatten_latest(latest)
     if latest and not latest_rows:
         issues.append("latest_recommendation_rows_missing")
+    if any(key in latest for key in GENERIC_LABELS):
+        issues.append("latest_contains_generic_ai_win_section_label")
 
     payload = {
         "ok": not issues,
@@ -93,7 +108,12 @@ def main() -> int:
             "source": strategy.get("source"),
             "selected_top_n": strategy.get("selected_top_n"),
             "selected_period_months": strategy.get("selected_period_months"),
+            "stop_multiplier": strategy.get("stop_multiplier"),
+            "target_return_pct": strategy.get("target_return_pct"),
+            "take_profit_trigger_pct": strategy.get("take_profit_trigger_pct"),
+            "take_profit_trailing_pct": strategy.get("take_profit_trailing_pct"),
             "min_allowed_period_months": MIN_BACKTEST_MONTHS,
+            "tested_rows": len(tested),
             "best_summary": strategy.get("best_summary"),
         },
         "recommendations": {
@@ -119,6 +139,15 @@ def as_int(value: Any) -> int | None:
         if value is None or value == "":
             return None
         return int(value)
+    except Exception:
+        return None
+
+
+def as_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
     except Exception:
         return None
 
