@@ -3,8 +3,15 @@
   const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   const num = (v, d = 2) => Number.isFinite(Number(v)) ? Number(v).toFixed(d) : "-";
   const price = (v) => Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)).toLocaleString("ko-KR") : "-";
+  const hiddenLabels = new Set(["AI WIN 전일종가 모멘텀 상위주", "AI WIN 일간 추천 후보"]);
   let state = null;
   let rendering = false;
+
+  function scrubRepeatedLabels(root = document) {
+    root.querySelectorAll(".candidate-main small").forEach((node) => {
+      if (hiddenLabels.has(node.textContent.trim())) node.remove();
+    });
+  }
 
   function rows(item) {
     const sections = item?.sections || {};
@@ -44,6 +51,7 @@
     if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수, 전일 점수, 선정 사유 표시`;
     const list = withPreviousScores(items, item, index);
     root.innerHTML = list.length ? list.map(card).join("") : '<div class="empty-state">추천 후보 대기</div>';
+    scrubRepeatedLabels(root);
     state.activeIndex = index;
     requestAnimationFrame(() => { rendering = false; });
   }
@@ -54,20 +62,23 @@
     if (!root || !tabRoot) return;
     const history = await load("./recommendation_history.json");
     const items = (history?.items || []).slice(-10).reverse();
-    if (!items.length) return;
-
-    state = { items, root, tabRoot, activeIndex: 0 };
-    tabRoot.innerHTML = items.map((item, i) => `<button type="button" class="tab ${i === 0 ? "active" : ""}" data-history-index="${i}">${esc(item.date)}</button>`).join("");
-    tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.historyIndex))));
-    show(0);
 
     const observer = new MutationObserver(() => {
+      scrubRepeatedLabels(root);
       if (rendering || !state) return;
       if (!state.root.querySelector(".candidate-card .candidate-score small")) {
         setTimeout(() => show(state.activeIndex || 0), 0);
       }
     });
     observer.observe(root, { childList: true, subtree: true });
+    scrubRepeatedLabels(root);
+
+    if (!items.length) return;
+
+    state = { items, root, tabRoot, activeIndex: 0 };
+    tabRoot.innerHTML = items.map((item, i) => `<button type="button" class="tab ${i === 0 ? "active" : ""}" data-history-index="${i}">${esc(item.date)}</button>`).join("");
+    tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.historyIndex))));
+    show(0);
     setTimeout(() => show(state.activeIndex || 0), 300);
     setTimeout(() => show(state.activeIndex || 0), 900);
   }
