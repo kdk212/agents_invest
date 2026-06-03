@@ -23,14 +23,21 @@ def record_prism_output(
     if not output_path.exists():
         return {"ok": False, "inserted": 0, "reason": f"output_not_found: {output_path}"}
 
+    adaptive_result = _enhance_prism_output(output_path)
+
     try:
         data = json.loads(output_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        return {"ok": False, "inserted": 0, "reason": f"json_load_failed: {exc.__class__.__name__}: {exc}"}
+        return {
+            "ok": False,
+            "inserted": 0,
+            "reason": f"json_load_failed: {exc.__class__.__name__}: {exc}",
+            "adaptive": adaptive_result,
+        }
 
     rows = list(_candidate_rows(data, selected_at=selected_at or datetime.now().isoformat(timespec="seconds")))
     if not rows:
-        return {"ok": True, "inserted": 0, "reason": "no_candidates"}
+        return {"ok": True, "inserted": 0, "reason": "no_candidates", "adaptive": adaptive_result}
 
     target_db = Path(db_path)
     target_db.parent.mkdir(parents=True, exist_ok=True)
@@ -80,7 +87,7 @@ def record_prism_output(
             """,
             rows,
         )
-    return {"ok": True, "inserted": len(rows), "db_path": str(target_db)}
+    return {"ok": True, "inserted": len(rows), "db_path": str(target_db), "adaptive": adaptive_result}
 
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
@@ -103,6 +110,17 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             )
             """
         )
+
+
+def _enhance_prism_output(output_path: Path) -> dict[str, Any]:
+    """Apply the self-tuning ai_win_invest-style layer without blocking PRISM."""
+
+    try:
+        from runtime.prism_adaptive_strategy import enhance_prism_output
+
+        return enhance_prism_output(output_path)
+    except Exception as exc:
+        return {"ok": False, "reason": f"adaptive_enhance_failed: {exc.__class__.__name__}: {exc}"}
 
 
 def _candidate_rows(data: dict[str, Any], *, selected_at: str) -> Iterable[dict[str, Any]]:
@@ -140,6 +158,10 @@ def _candidate_rows(data: dict[str, Any], *, selected_at: str) -> Iterable[dict[
                     {
                         "agent_fit_score": item.get("agent_fit_score"),
                         "final_score": item.get("final_score"),
+                        "ai_win_score": item.get("ai_win_score"),
+                        "ai_win_score_100": item.get("ai_win_score_100"),
+                        "adaptive_profit_score": item.get("adaptive_profit_score"),
+                        "adaptive_selected_period_months": item.get("adaptive_selected_period_months"),
                         "rs_score": item.get("rs_score"),
                         "extension_score": item.get("extension_score"),
                     }
