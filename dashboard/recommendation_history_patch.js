@@ -13,7 +13,7 @@
 
   function aiWinScore(x) {
     const rawScore = Number(x?.ai_win_score);
-    const fallbackScore = Number(x?.ai_win_score_100 ?? x?.adaptive_profit_score ?? x?.profit_score);
+    const fallbackScore = Number(x?.adaptive_profit_score ?? x?.profit_score ?? x?.ai_win_score_100);
     return Number.isFinite(rawScore) ? rawScore : fallbackScore;
   }
 
@@ -23,7 +23,9 @@
     const previousClose = price(x.previous_close_price ?? x.signal_price ?? x.current_price);
     const stop = `${num(x.stop_loss_pct, 2)}% / ${price(x.stop_loss_price)}`;
     const target = `${num(x.target_return_pct ?? x.take_profit_trigger_pct, 2)}% / ${price(x.target_price)}`;
-    return `<article class="candidate-card"><div class="candidate-main"><span class="candidate-code">${esc(x.code)}</span><strong>${esc(x.name)}</strong><small>${esc(x.entry_plan || x.buy_at || "시초가 진입")}</small></div><div class="candidate-score"><span>AI WIN 원점수</span><strong>${esc(score)}</strong><small>전일 ${esc(previousScore)}</small></div><dl class="candidate-facts"><div><dt>전일종가</dt><dd>${esc(previousClose)}</dd></div><div><dt>등락</dt><dd>${esc(num(x.change_rate,2))}%</dd></div><div><dt>손절</dt><dd>${esc(stop)}</dd></div><div><dt>목표</dt><dd>${esc(target)}</dd></div></dl></article>`;
+    const reason = x.recommendation_reason || x.trigger_type || "선정 사유 대기";
+    const risk = x.risk_note ? `<small class="candidate-risk">${esc(x.risk_note)}</small>` : "";
+    return `<article class="candidate-card"><div class="candidate-main"><span class="candidate-code">${esc(x.code)}</span><strong>${esc(x.name)}</strong><small>${esc(x.entry_plan || x.buy_at || "시초가 진입")}</small><small class="candidate-reason">${esc(reason)}</small>${risk}</div><div class="candidate-score"><span>AI WIN 원점수</span><strong>${esc(score)}</strong><small>전일 ${esc(previousScore)}</small></div><dl class="candidate-facts"><div><dt>전일종가</dt><dd>${esc(previousClose)}</dd></div><div><dt>등락</dt><dd>${esc(num(x.change_rate,2))}%</dd></div><div><dt>손절</dt><dd>${esc(stop)}</dd></div><div><dt>목표</dt><dd>${esc(target)}</dd></div></dl></article>`;
   }
 
   function withPreviousScores(items, item, index) {
@@ -39,7 +41,7 @@
     rendering = true;
     tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.classList.toggle("active", Number(button.dataset.historyIndex) === index));
     const meta = document.getElementById("prismResultMeta");
-    if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수와 같은 종목의 전일 점수 표시`;
+    if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수, 전일 점수, 선정 사유 표시`;
     const list = withPreviousScores(items, item, index);
     root.innerHTML = list.length ? list.map(card).join("") : '<div class="empty-state">추천 후보 대기</div>';
     state.activeIndex = index;
