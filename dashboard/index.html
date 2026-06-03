@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>agents_invest 운영 대시보드</title>
+  <title>agents_invest 포트폴리오 대시보드</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <main class="shell">
     <section class="hero" aria-labelledby="page-title">
       <div>
-        <p class="eyebrow">PRISM-INSIGHT + agents_invest</p>
-        <h1 id="page-title">운영 대시보드</h1>
-        <p class="subtitle">수익 점수화, 리스크 차단, PRISM 통합, AWS 24시간 paper 운영 상태를 한 화면에서 확인합니다.</p>
+        <p class="eyebrow">PRISM-INSIGHT + adaptive portfolio</p>
+        <h1 id="page-title">수익률 운영 대시보드</h1>
+        <p class="subtitle">PRISM 추천주, 백테스트 최적화, 매도 신호, 누적 추천 비중 기반 paper 포트폴리오 수익률을 한 화면에서 추적합니다.</p>
       </div>
-      <div class="hero-panel" aria-label="운영 상태 요약">
+      <div class="hero-panel" aria-label="포트폴리오 상태 요약">
         <canvas id="statusCanvas" width="320" height="180" aria-hidden="true"></canvas>
         <div class="pulse-row">
           <span class="pulse" id="overallPulse"></span>
@@ -23,26 +23,66 @@
       </div>
     </section>
 
-    <section class="grid metrics" aria-label="핵심 상태">
-      <article class="metric">
-        <span class="label">운영 모드</span>
-        <strong id="tradingMode">-</strong>
-        <small id="modeDetail">paper 권장</small>
+    <section class="grid metrics portfolio-metrics" aria-label="포트폴리오 핵심 지표">
+      <article class="metric focus">
+        <span class="label">포트폴리오 수익률</span>
+        <strong id="portfolioReturn">-</strong>
+        <small id="portfolioReturnDetail">시작일 2026-06-01</small>
       </article>
       <article class="metric">
-        <span class="label">PRISM 통합</span>
-        <strong id="integrationState">-</strong>
-        <small id="integrationDetail">Actions 실행 필요</small>
+        <span class="label">연환산 수익률</span>
+        <strong id="portfolioAnnualized">-</strong>
+        <small>누적 추천 투자 가정</small>
       </article>
       <article class="metric">
-        <span class="label">비상정지</span>
-        <strong id="killSwitch">-</strong>
-        <small id="killSwitchDetail">SSM / env</small>
+        <span class="label">백테스트 CAGR</span>
+        <strong id="backtestCagr">-</strong>
+        <small id="backtestPeriod">최근 구간 최적화</small>
       </article>
       <article class="metric">
-        <span class="label">검증</span>
-        <strong id="validationState">-</strong>
-        <small id="validationDetail">live 전환 전 필수</small>
+        <span class="label">보유 단위</span>
+        <strong id="openUnits">-</strong>
+        <small id="openPositions">보유 종목 -</small>
+      </article>
+    </section>
+
+    <section class="panel performance-panel" aria-labelledby="performance-title">
+      <div class="panel-head">
+        <h2 id="performance-title">포트폴리오 성과</h2>
+        <span id="portfolioUpdatedAt">결과 대기</span>
+      </div>
+      <div class="performance-grid">
+        <div class="chart-wrap">
+          <canvas id="portfolioCanvas" width="760" height="260" aria-label="포트폴리오 수익률 곡선"></canvas>
+        </div>
+        <div class="strategy-card">
+          <span class="label">현재 자동 보완 로직</span>
+          <strong id="strategySource">-</strong>
+          <dl>
+            <div><dt>선택 기간</dt><dd id="strategyPeriod">-</dd></div>
+            <div><dt>점수 컷</dt><dd id="strategyThreshold">-</dd></div>
+            <div><dt>손절 배수</dt><dd id="strategyStop">-</dd></div>
+            <div><dt>익절/트레일</dt><dd id="strategyTakeProfit">-</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="layout portfolio-layout">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>현재 보유 포트폴리오</h2>
+          <span>추천 누적 비중</span>
+        </div>
+        <div class="holding-list" id="holdingList"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>최근 매도 신호</h2>
+          <span>전량 매도 기준</span>
+        </div>
+        <div class="sell-list" id="sellSignalList"></div>
       </article>
     </section>
 
@@ -56,6 +96,29 @@
         <button type="button" class="tab" data-result-mode="afternoon">오후</button>
       </div>
       <div class="candidate-list" id="candidateList"></div>
+    </section>
+
+    <section class="grid metrics" aria-label="운영 상태">
+      <article class="metric compact">
+        <span class="label">운영 모드</span>
+        <strong id="tradingMode">-</strong>
+        <small id="modeDetail">paper 권장</small>
+      </article>
+      <article class="metric compact">
+        <span class="label">PRISM 통합</span>
+        <strong id="integrationState">-</strong>
+        <small id="integrationDetail">Actions 실행 필요</small>
+      </article>
+      <article class="metric compact">
+        <span class="label">비상정지</span>
+        <strong id="killSwitch">-</strong>
+        <small id="killSwitchDetail">SSM / env</small>
+      </article>
+      <article class="metric compact">
+        <span class="label">검증</span>
+        <strong id="validationState">-</strong>
+        <small id="validationDetail">live 전환 전 필수</small>
+      </article>
     </section>
 
     <section class="layout">
@@ -79,27 +142,6 @@
     <section class="layout">
       <article class="panel">
         <div class="panel-head">
-          <h2>지금 해야 할 일</h2>
-          <span>현재 병목</span>
-        </div>
-        <div class="next-actions" id="nextActions"></div>
-      </article>
-
-      <article class="panel actions">
-        <div class="panel-head">
-          <h2>바로가기</h2>
-          <span>다음 액션</span>
-        </div>
-        <a href="https://github.com/kdk212/agents_invest/actions/workflows/integrate-prism-insight.yml" target="_blank" rel="noreferrer">PRISM 통합 실행</a>
-        <a href="https://github.com/kdk212/agents_invest/blob/main/docs/NEXT_STEPS_ko.md" target="_blank" rel="noreferrer">현재 다음 단계</a>
-        <a href="https://github.com/kdk212/agents_invest/issues/1" target="_blank" rel="noreferrer">체크리스트 이슈</a>
-        <a href="https://ap-southeast-2.console.aws.amazon.com/console/home?region=ap-southeast-2" target="_blank" rel="noreferrer">AWS 콘솔</a>
-      </article>
-    </section>
-
-    <section class="layout">
-      <article class="panel">
-        <div class="panel-head">
           <h2>성과 피드백</h2>
           <span>paper 결과 기반</span>
         </div>
@@ -108,7 +150,7 @@
 
       <article class="notice" aria-label="주의">
         <strong>주의</strong>
-        <p>이 대시보드는 수익을 보장하지 않습니다. 실계좌 자동매매는 PRISM 통합, paper 검증, Telegram 알림, Kill Switch, RiskGovernor 확인이 끝난 뒤에만 검토합니다.</p>
+        <p>이 대시보드는 수익을 보장하지 않습니다. 현재 수익률은 추천주 기반 paper 포트폴리오 가정이며, 실제 거래 전에는 체결 가능성, 거래비용, 슬리피지, 공시와 뉴스 리스크를 별도로 확인해야 합니다.</p>
       </article>
     </section>
   </main>
