@@ -37,7 +37,14 @@ def record_prism_output(
 
     rows = list(_candidate_rows(data, selected_at=selected_at or datetime.now().isoformat(timespec="seconds")))
     if not rows:
-        return {"ok": True, "inserted": 0, "reason": "no_candidates", "adaptive": adaptive_result}
+        portfolio_result = _update_portfolio_status(db_path)
+        return {
+            "ok": True,
+            "inserted": 0,
+            "reason": "no_candidates",
+            "adaptive": adaptive_result,
+            "portfolio": portfolio_result,
+        }
 
     target_db = Path(db_path)
     target_db.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +94,14 @@ def record_prism_output(
             """,
             rows,
         )
-    return {"ok": True, "inserted": len(rows), "db_path": str(target_db), "adaptive": adaptive_result}
+    portfolio_result = _update_portfolio_status(target_db)
+    return {
+        "ok": True,
+        "inserted": len(rows),
+        "db_path": str(target_db),
+        "adaptive": adaptive_result,
+        "portfolio": portfolio_result,
+    }
 
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
@@ -121,6 +135,23 @@ def _enhance_prism_output(output_path: Path) -> dict[str, Any]:
         return enhance_prism_output(output_path)
     except Exception as exc:
         return {"ok": False, "reason": f"adaptive_enhance_failed: {exc.__class__.__name__}: {exc}"}
+
+
+def _update_portfolio_status(db_path: str | Path) -> dict[str, Any]:
+    """Refresh dashboard paper portfolio without blocking candidate recording."""
+
+    try:
+        from runtime.portfolio_tracker import update_portfolio_status
+
+        result = update_portfolio_status(db_path=db_path)
+        return {
+            "ok": True,
+            "start_date": result.get("start_date"),
+            "total_return_pct": result.get("summary", {}).get("total_return_pct"),
+            "open_positions": result.get("summary", {}).get("open_positions"),
+        }
+    except Exception as exc:
+        return {"ok": False, "reason": f"portfolio_update_failed: {exc.__class__.__name__}: {exc}"}
 
 
 def _candidate_rows(data: dict[str, Any], *, selected_at: str) -> Iterable[dict[str, Any]]:
