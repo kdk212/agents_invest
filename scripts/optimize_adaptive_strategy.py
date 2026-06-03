@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCK_PATH = Path("/tmp/agents_invest_krx.lock")
 
 
 def _load_runtime_env() -> None:
@@ -25,6 +27,22 @@ def _load_runtime_env() -> None:
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+@contextlib.contextmanager
+def _krx_lock():
+    if os.name != "posix":
+        yield
+        return
+    import fcntl
+
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK_PATH.open("w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 _load_runtime_env()
@@ -49,14 +67,15 @@ def main() -> int:
     args = parser.parse_args()
 
     periods = tuple(int(part.strip()) for part in args.periods.split(",") if part.strip())
-    result = optimize_and_write_strategy(
-        end=args.end,
-        periods_months=periods,
-        top_n=args.top_n,
-        universe_size=args.universe_size,
-        strategy_path=args.strategy_path,
-        dashboard_strategy_path=args.dashboard_strategy_path,
-    )
+    with _krx_lock():
+        result = optimize_and_write_strategy(
+            end=args.end,
+            periods_months=periods,
+            top_n=args.top_n,
+            universe_size=args.universe_size,
+            strategy_path=args.strategy_path,
+            dashboard_strategy_path=args.dashboard_strategy_path,
+        )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 2
 
