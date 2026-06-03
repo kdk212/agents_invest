@@ -16,6 +16,7 @@ import argparse
 import importlib.util
 import json
 import math
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -28,10 +29,12 @@ DASHBOARD = ROOT / "dashboard"
 
 
 def load_optimizer():
-    spec = importlib.util.spec_from_file_location("ai_win_optimizer", OPTIMIZER_PATH)
+    module_name = "ai_win_optimizer"
+    spec = importlib.util.spec_from_file_location(module_name, OPTIMIZER_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError("optimizer module not found")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
