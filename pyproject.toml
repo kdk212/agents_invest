@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Optimization add-ons for PRISM-INSIGHT based trading workflows"
 requires-python = ">=3.9"
 dependencies = [
+    "finance-datareader>=0.9.96",
     "numpy>=1.26",
     "pandas>=2.0",
     "python-dotenv>=1.0",
