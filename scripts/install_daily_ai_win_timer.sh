@@ -19,7 +19,7 @@ Environment=PORTFOLIO_START=2026-06-01
 Environment=UNIVERSE_SIZE=180
 Environment=MIN_TOP_N=1
 Environment=MAX_TOP_N=8
-Environment=PERIOD_MONTHS=24,18,12,6,3
+Environment=PERIOD_MONTHS=24,18,12
 Environment=EXPLAIN_QUERY=001820
 ExecStart=/bin/bash $APP_DIR/scripts/run_ai_win_rebuild_and_validate.sh
 ExecStart=$PYTHON $APP_DIR/scripts/send_dashboard_telegram.py
