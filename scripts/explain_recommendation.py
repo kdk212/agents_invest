@@ -11,6 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HISTORY = ROOT / "dashboard" / "recommendation_history.json"
 DEFAULT_LATEST = ROOT / "dashboard" / "prism_latest_morning.json"
+GENERIC_LABELS = {"AI WIN 전일종가 모멘텀 상위주", "AI WIN 일간 추천 후보", "추천 후보"}
 
 
 def main() -> int:
@@ -68,8 +69,19 @@ def read_json(path: Path) -> dict[str, Any]:
         return {}
 
 
+def clean_reason(row: dict[str, Any]) -> str:
+    reason = str(row.get("recommendation_reason") or "").strip()
+    if reason and reason not in GENERIC_LABELS:
+        return reason
+    trigger = str(row.get("trigger_type") or "").strip()
+    if trigger and trigger not in GENERIC_LABELS:
+        return trigger
+    return "명확한 추천 사유가 기록되지 않았습니다. 점수 구성값만 참고하세요."
+
+
 def explain(row: dict[str, Any]) -> dict[str, Any]:
     components = row.get("score_components") if isinstance(row.get("score_components"), dict) else {}
+    strategy = row.get("sell_rule") if isinstance(row.get("sell_rule"), dict) else row.get("metadata", {}).get("strategy", {})
     return {
         "date": row.get("date"),
         "signal_at": row.get("signal_at") or row.get("metadata", {}).get("signal_at"),
@@ -79,9 +91,10 @@ def explain(row: dict[str, Any]) -> dict[str, Any]:
         "section": row.get("section"),
         "ai_win_score": row.get("ai_win_score") or row.get("adaptive_profit_score") or row.get("profit_score"),
         "previous_close_price": row.get("previous_close_price") or row.get("signal_price") or row.get("current_price"),
-        "recommendation_reason": row.get("recommendation_reason") or row.get("trigger_type"),
-        "risk_note": row.get("risk_note"),
+        "recommendation_reason": clean_reason(row),
+        "risk_note": row.get("risk_note") or "기록된 별도 리스크 요약 없음",
         "score_components": components,
+        "selected_sell_rule": strategy,
         "stop_loss_price": row.get("stop_loss_price"),
         "target_price": row.get("target_price"),
         "target_return_pct": row.get("target_return_pct"),
