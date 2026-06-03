@@ -1,0 +1,70 @@
+name: Weekly Adaptive Strategy Optimizer
+
+on:
+  workflow_dispatch:
+    inputs:
+      end:
+        description: "Backtest end date YYYYMMDD or YYYY-MM-DD; blank means latest"
+        required: false
+        default: ""
+      periods:
+        description: "Comma-separated month windows"
+        required: false
+        default: "24,18,12"
+      top_n:
+        description: "Maximum portfolio positions"
+        required: false
+        default: "7"
+      universe_size:
+        description: "Top liquid universe size"
+        required: false
+        default: "160"
+  schedule:
+    - cron: "0 12 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e .
+          python -m pip install kospi-kosdaq-stock-server playwright
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run optimizer
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+        run: |
+          END_ARG=""
+          if [ -n "${{ github.event.inputs.end }}" ]; then END_ARG="--end ${{ github.event.inputs.end }}"; fi
+          python scripts/optimize_adaptive_strategy.py \
+            $END_ARG \
+            --periods "${{ github.event.inputs.periods || '24,18,12' }}" \
+            --top-n "${{ github.event.inputs.top_n || '7' }}" \
+            --universe-size "${{ github.event.inputs.universe_size || '160' }}"
+
+      - name: Upload adaptive strategy artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-strategy
+          path: |
+            runtime/adaptive_strategy.json
+            dashboard/adaptive_strategy.json
+          if-no-files-found: warn
