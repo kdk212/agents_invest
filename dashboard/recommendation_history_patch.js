@@ -10,11 +10,14 @@
   }
 
   function card(x) {
-    const score = num(x.ai_win_score_100 ?? x.adaptive_profit_score ?? x.profit_score, 1);
+    const rawScore = Number(x.ai_win_score);
+    const percentile = num(x.ai_win_score_100 ?? x.adaptive_profit_score ?? x.profit_score, 1);
+    const score = Number.isFinite(rawScore) ? rawScore.toFixed(2) : percentile;
+    const scoreLabel = Number.isFinite(rawScore) ? `백분위 ${percentile}` : "백분위";
     const previousClose = price(x.previous_close_price ?? x.signal_price ?? x.current_price);
     const stop = `${num(x.stop_loss_pct, 2)}% / ${price(x.stop_loss_price)}`;
     const target = `${num(x.target_return_pct ?? x.take_profit_trigger_pct, 2)}% / ${price(x.target_price)}`;
-    return `<article class="candidate-card"><div class="candidate-main"><span class="candidate-code">${esc(x.code)}</span><strong>${esc(x.name)}</strong><small>${esc(x.entry_plan || x.buy_at || "시초가 진입")}</small></div><div class="candidate-score"><span>AI WIN</span><strong>${esc(score)}</strong><small>당일 백분위</small></div><dl class="candidate-facts"><div><dt>전일종가</dt><dd>${esc(previousClose)}</dd></div><div><dt>등락</dt><dd>${esc(num(x.change_rate,2))}%</dd></div><div><dt>손절</dt><dd>${esc(stop)}</dd></div><div><dt>목표</dt><dd>${esc(target)}</dd></div></dl></article>`;
+    return `<article class="candidate-card"><div class="candidate-main"><span class="candidate-code">${esc(x.code)}</span><strong>${esc(x.name)}</strong><small>${esc(x.entry_plan || x.buy_at || "시초가 진입")}</small></div><div class="candidate-score"><span>AI WIN 원점수</span><strong>${esc(score)}</strong><small>${esc(scoreLabel)}</small></div><dl class="candidate-facts"><div><dt>전일종가</dt><dd>${esc(previousClose)}</dd></div><div><dt>등락</dt><dd>${esc(num(x.change_rate,2))}%</dd></div><div><dt>손절</dt><dd>${esc(stop)}</dd></div><div><dt>목표</dt><dd>${esc(target)}</dd></div></dl></article>`;
   }
 
   async function render() {
@@ -31,7 +34,7 @@
       const item = items[index] || items[0];
       tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.classList.toggle("active", Number(button.dataset.historyIndex) === index));
       const meta = document.getElementById("prismResultMeta");
-      if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN은 해당일 후보군 백분위`;
+      if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수는 날짜별 종목 고유 점수, 백분위는 해당일 후보군 내 순위`;
       const list = rows(item);
       root.innerHTML = list.length ? list.map(card).join("") : '<div class="empty-state">추천 후보 대기</div>';
     }
