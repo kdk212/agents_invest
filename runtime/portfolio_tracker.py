@@ -14,7 +14,7 @@ import math
 import os
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +88,9 @@ def update_portfolio_status(
 
     tickers = sorted({row["ticker"] for row in rows})
     price_map = _load_price_map(tickers, start=start, end=end)
+    price_source = "krx" if price_map else "recommendation_snapshot"
+    if not price_map:
+        price_map = _price_map_from_recommendations(rows, end=end)
     if not price_map:
         payload = _empty_payload(start=start, end=end, reason="price_data_unavailable")
         payload["recommendation_count"] = len(rows)
@@ -189,6 +192,7 @@ def update_portfolio_status(
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "start_date": start,
         "end_date": end,
+        "price_source": price_source,
         "rule": "daily recommendation adds one unit; repeated ticker recommendations add weight; sell signal exits all ticker units",
         "recommendation_count": len(rows),
         "trade_count": trade_count,
@@ -246,6 +250,9 @@ def _load_recommendation_rows(db_path: Path, *, start: str) -> list[dict[str, An
 
 
 def _load_price_map(tickers: list[str], *, start: str, end: str) -> dict[str, pd.Series]:
+    if os.getenv("PORTFOLIO_FETCH_KRX", "").lower() not in {"1", "true", "yes"}:
+        return {}
+
     price_map: dict[str, pd.Series] = {}
     start_ymd = start.replace("-", "")
     end_ymd = end.replace("-", "")
@@ -269,6 +276,51 @@ def _load_price_map(tickers: list[str], *, start: str, end: str) -> dict[str, pd
     return price_map
 
 
+def _price_map_from_recommendations(rows: list[dict[str, Any]], *, end: str) -> dict[str, pd.Series]:
+    latest_prices = _latest_prices_from_prism_files()
+    by_ticker: dict[str, dict[str, float]] = {}
+    for row in rows:
+        ticker = row["ticker"]
+        signal_date = row["signal_date"]
+        price = _positive_float(row.get("price_at_signal"))
+        if price:
+            by_ticker.setdefault(ticker, {})[signal_date] = price
+
+    for ticker, price in latest_prices.items():
+        by_ticker.setdefault(ticker, {})[end] = price
+
+    price_map: dict[str, pd.Series] = {}
+    for ticker, dated_prices in by_ticker.items():
+        if not dated_prices:
+            continue
+        series = pd.Series(dated_prices, dtype="float64").sort_index()
+        if end not in series.index:
+            series.loc[end] = float(series.iloc[-1])
+            series = series.sort_index()
+        price_map[ticker] = series
+    return price_map
+
+
+def _latest_prices_from_prism_files() -> dict[str, float]:
+    prices: dict[str, float] = {}
+    for path in sorted((ROOT / "dashboard").glob("prism_latest_*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for key, value in data.items():
+            if key == "metadata" or not isinstance(value, list):
+                continue
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+                ticker = str(item.get("code") or item.get("ticker") or "").zfill(6)
+                price = _positive_float(item.get("current_price"))
+                if ticker and price:
+                    prices[ticker] = price
+    return prices
+
+
 def _portfolio_calendar(start: str, end: str, price_map: dict[str, pd.Series]) -> list[pd.Timestamp]:
     dates = set()
     for series in price_map.values():
@@ -281,7 +333,7 @@ def _portfolio_calendar(start: str, end: str, price_map: dict[str, pd.Series]) -
 def _holdings_payload(open_positions: dict[str, Position], price_map: dict[str, pd.Series], current_date: str) -> list[dict[str, Any]]:
     rows = []
     for ticker, position in open_positions.items():
-        price = _price_on_or_before(price_map.get(ticker), current_date) or 0.0
+        price = _price_on_or_before(price_map.get(ticker), current_date) or position.avg_entry
         value = price * position.unit_count
         pnl = value - position.cost
         rows.append(
