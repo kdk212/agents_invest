@@ -1,11 +1,7 @@
 name: prism-import-auto
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/prism-import-auto-trigger/**"
+  workflow_dispatch:
 
 permissions:
   contents: write
