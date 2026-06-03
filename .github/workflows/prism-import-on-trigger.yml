@@ -1,11 +1,7 @@
 name: prism-import-on-trigger
 
 on:
-  push:
-    branches:
-      - integrate-prism-insight
-    paths:
-      - ".github/prism-import-trigger/**"
+  workflow_dispatch:
 
 permissions:
   contents: write
