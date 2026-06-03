@@ -10,6 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "dashboard"
+MIN_BACKTEST_MONTHS = 12
 
 
 def main() -> int:
@@ -45,6 +46,11 @@ def main() -> int:
         issues.append(f"strategy_source_not_intraday: {strategy.get('source')}")
     if not strategy.get("selected_top_n"):
         issues.append("selected_top_n_missing")
+    selected_period = as_int(strategy.get("selected_period_months"))
+    if selected_period is None:
+        issues.append("selected_period_months_missing")
+    elif selected_period < MIN_BACKTEST_MONTHS:
+        issues.append(f"selected_period_too_short: {selected_period} months; minimum={MIN_BACKTEST_MONTHS}")
     if not isinstance(strategy.get("tested"), list) or not strategy.get("tested"):
         warnings.append("backtest_tested_rows_missing")
 
@@ -86,6 +92,8 @@ def main() -> int:
         "strategy": {
             "source": strategy.get("source"),
             "selected_top_n": strategy.get("selected_top_n"),
+            "selected_period_months": strategy.get("selected_period_months"),
+            "min_allowed_period_months": MIN_BACKTEST_MONTHS,
             "best_summary": strategy.get("best_summary"),
         },
         "recommendations": {
@@ -104,6 +112,15 @@ def read_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         return {"_read_error": f"{exc.__class__.__name__}: {exc}"}
+
+
+def as_int(value: Any) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except Exception:
+        return None
 
 
 def flatten_history(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
