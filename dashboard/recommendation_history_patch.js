@@ -3,6 +3,8 @@
   const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   const num = (v, d = 2) => Number.isFinite(Number(v)) ? Number(v).toFixed(d) : "-";
   const price = (v) => Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)).toLocaleString("ko-KR") : "-";
+  let state = null;
+  let rendering = false;
 
   function rows(item) {
     const sections = item?.sections || {};
@@ -30,6 +32,20 @@
     return rows(item).map((x) => ({ ...x, previous_ai_win_score: previousByCode.get(String(x.code)) }));
   }
 
+  function show(index) {
+    if (!state) return;
+    const { items, root, tabRoot } = state;
+    const item = items[index] || items[0];
+    rendering = true;
+    tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.classList.toggle("active", Number(button.dataset.historyIndex) === index));
+    const meta = document.getElementById("prismResultMeta");
+    if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수와 같은 종목의 전일 점수 표시`;
+    const list = withPreviousScores(items, item, index);
+    root.innerHTML = list.length ? list.map(card).join("") : '<div class="empty-state">추천 후보 대기</div>';
+    state.activeIndex = index;
+    requestAnimationFrame(() => { rendering = false; });
+  }
+
   async function render() {
     const root = document.getElementById("candidateList");
     const tabRoot = document.querySelector(".result-tabs");
@@ -38,19 +54,20 @@
     const items = (history?.items || []).slice(-10).reverse();
     if (!items.length) return;
 
+    state = { items, root, tabRoot, activeIndex: 0 };
     tabRoot.innerHTML = items.map((item, i) => `<button type="button" class="tab ${i === 0 ? "active" : ""}" data-history-index="${i}">${esc(item.date)}</button>`).join("");
-
-    function show(index) {
-      const item = items[index] || items[0];
-      tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.classList.toggle("active", Number(button.dataset.historyIndex) === index));
-      const meta = document.getElementById("prismResultMeta");
-      if (meta) meta.textContent = `${item.metadata?.signal_at || item.date} 기준 · ${item.metadata?.buy_at || item.date + " 시초가"} 진입 · AI WIN 원점수와 같은 종목의 전일 점수 표시`;
-      const list = withPreviousScores(items, item, index);
-      root.innerHTML = list.length ? list.map(card).join("") : '<div class="empty-state">추천 후보 대기</div>';
-    }
-
     tabRoot.querySelectorAll("[data-history-index]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.historyIndex))));
     show(0);
+
+    const observer = new MutationObserver(() => {
+      if (rendering || !state) return;
+      if (!state.root.querySelector(".candidate-card .candidate-score small")) {
+        setTimeout(() => show(state.activeIndex || 0), 0);
+      }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    setTimeout(() => show(state.activeIndex || 0), 300);
+    setTimeout(() => show(state.activeIndex || 0), 900);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render); else render();
