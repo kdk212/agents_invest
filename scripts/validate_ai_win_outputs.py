@@ -27,12 +27,17 @@ def main() -> int:
     issues: list[str] = []
     warnings: list[str] = []
 
+    curve = portfolio.get("equity_curve") if isinstance(portfolio.get("equity_curve"), list) else []
     if portfolio.get("start_date") != args.portfolio_start:
         issues.append(f"portfolio_start_mismatch: expected {args.portfolio_start}, got {portfolio.get('start_date')}")
     if "intraday_sell_rules" not in str(portfolio.get("price_source", "")):
         issues.append(f"portfolio_price_source_not_intraday: {portfolio.get('price_source')}")
-    if not isinstance(portfolio.get("equity_curve"), list) or not portfolio.get("equity_curve"):
+    if not curve:
         issues.append("equity_curve_missing")
+    else:
+        last_curve_date = curve[-1].get("date") if isinstance(curve[-1], dict) else None
+        if portfolio.get("end_date") != last_curve_date:
+            issues.append(f"portfolio_end_date_curve_mismatch: end_date={portfolio.get('end_date')}, last_curve_date={last_curve_date}")
     if not isinstance(portfolio.get("summary"), dict):
         issues.append("portfolio_summary_missing")
 
@@ -74,7 +79,9 @@ def main() -> int:
             "end_date": portfolio.get("end_date"),
             "price_source": portfolio.get("price_source"),
             "summary": portfolio.get("summary", {}),
-            "equity_curve_rows": len(portfolio.get("equity_curve", [])) if isinstance(portfolio.get("equity_curve"), list) else 0,
+            "equity_curve_rows": len(curve),
+            "first_curve_date": curve[0].get("date") if curve and isinstance(curve[0], dict) else None,
+            "last_curve_date": curve[-1].get("date") if curve and isinstance(curve[-1], dict) else None,
         },
         "strategy": {
             "source": strategy.get("source"),
