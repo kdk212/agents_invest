@@ -5,10 +5,30 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_runtime_env() -> None:
+    env_path = ROOT / "config" / "runtime.env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_runtime_env()
+
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 PRISM_DIR = ROOT / "prism-insight"
