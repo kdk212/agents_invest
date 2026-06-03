@@ -59,18 +59,21 @@ def rows_from_recommendation(data: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def pct(value: Any) -> str:
-    if value is None:
-        return "-"
-    return str(value)
-
-
 def price(value: Any) -> str:
     try:
         number = float(value)
     except Exception:
         return "-"
     return f"{number:,.0f}"
+
+
+def score(row: dict[str, Any]) -> str:
+    for key in ("ai_win_score", "adaptive_profit_score", "profit_score"):
+        try:
+            return f"{float(row.get(key)):.2f}"
+        except Exception:
+            continue
+    return "-"
 
 
 def build_message() -> str:
@@ -103,9 +106,10 @@ def build_message() -> str:
 
     if rec_rows:
         for row in rec_rows[:7]:
+            reason = row.get("recommendation_reason") or row.get("trigger_type") or "-"
             lines.append(
                 f"- {row.get('code', '-')} {row.get('name', '-')} "
-                f"점수 {row.get('ai_win_score_100', row.get('adaptive_profit_score', '-'))} "
+                f"AI {score(row)} · {reason} · "
                 f"손절 {price(row.get('stop_loss_price'))} 목표 {price(row.get('target_price'))}"
             )
     else:
@@ -132,8 +136,7 @@ def build_message() -> str:
     else:
         lines.append("- 최근 매도 신호 없음")
 
-    text = "\n".join(lines)
-    return text[:3900]
+    return "\n".join(lines)[:3900]
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
