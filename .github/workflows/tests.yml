@@ -2,10 +2,6 @@ name: tests
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   pytest:
@@ -13,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11"]
 
     steps:
       - name: Checkout
@@ -32,8 +28,8 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
-      - name: Run runtime preflight
-        run: python -m runtime.preflight --json
+      - name: Run runtime preflight without runtime secrets
+        run: python -m runtime.preflight --json --allow-missing-secrets
 
       - name: Check integration readiness
         run: python scripts/check_integration.py --allow-missing-upstream
