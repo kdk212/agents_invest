@@ -143,7 +143,7 @@ def _select_universe(listing: pd.DataFrame, universe_size: int) -> list[str]:
     if sort_col:
         filtered[sort_col] = pd.to_numeric(filtered[sort_col], errors="coerce")
         filtered = filtered.sort_values(sort_col, ascending=False)
-    return filtered.index.astype(str).str.zfill(6).head(universe_size).tolist()
+    return filtered.index.astype(str).str.zfill(6)[:universe_size].tolist()
 
 
 def _score_ticker(ticker: str, df: pd.DataFrame, listing: pd.DataFrame) -> dict[str, Any] | None:
