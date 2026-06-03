@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -28,23 +29,12 @@ def record_prism_output(
     try:
         data = json.loads(output_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        return {
-            "ok": False,
-            "inserted": 0,
-            "reason": f"json_load_failed: {exc.__class__.__name__}: {exc}",
-            "adaptive": adaptive_result,
-        }
+        return {"ok": False, "inserted": 0, "reason": f"json_load_failed: {exc.__class__.__name__}: {exc}", "adaptive": adaptive_result}
 
     rows = list(_candidate_rows(data, selected_at=selected_at or datetime.now().isoformat(timespec="seconds")))
     if not rows:
         portfolio_result = _update_portfolio_status(db_path)
-        return {
-            "ok": True,
-            "inserted": 0,
-            "reason": "no_candidates",
-            "adaptive": adaptive_result,
-            "portfolio": portfolio_result,
-        }
+        return {"ok": True, "inserted": 0, "reason": "no_candidates", "adaptive": adaptive_result, "portfolio": portfolio_result}
 
     target_db = Path(db_path)
     target_db.parent.mkdir(parents=True, exist_ok=True)
@@ -95,13 +85,7 @@ def record_prism_output(
             rows,
         )
     portfolio_result = _update_portfolio_status(target_db)
-    return {
-        "ok": True,
-        "inserted": len(rows),
-        "db_path": str(target_db),
-        "adaptive": adaptive_result,
-        "portfolio": portfolio_result,
-    }
+    return {"ok": True, "inserted": len(rows), "db_path": str(target_db), "adaptive": adaptive_result, "portfolio": portfolio_result}
 
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
@@ -127,29 +111,27 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
 
 
 def _enhance_prism_output(output_path: Path) -> dict[str, Any]:
-    """Apply the self-tuning ai_win_invest-style layer without blocking PRISM."""
-
     try:
         from runtime.prism_adaptive_strategy import enhance_prism_output
-
         return enhance_prism_output(output_path)
     except Exception as exc:
         return {"ok": False, "reason": f"adaptive_enhance_failed: {exc.__class__.__name__}: {exc}"}
 
 
 def _update_portfolio_status(db_path: str | Path) -> dict[str, Any]:
-    """Refresh dashboard paper portfolio without blocking candidate recording."""
+    """Refresh legacy portfolio only when explicitly enabled.
 
+    The operator now uses the AI WIN twice-daily portfolio JSON. The old
+    candidate-history portfolio can resurrect stale PRISM names, so keep it off
+    unless LEGACY_PORTFOLIO_TRACKER=1 is set.
+    """
+
+    if os.getenv("LEGACY_PORTFOLIO_TRACKER", "").lower() not in {"1", "true", "yes"}:
+        return {"ok": True, "skipped": True, "reason": "legacy_portfolio_tracker_disabled"}
     try:
         from runtime.portfolio_tracker import update_portfolio_status
-
         result = update_portfolio_status(db_path=db_path)
-        return {
-            "ok": True,
-            "start_date": result.get("start_date"),
-            "total_return_pct": result.get("summary", {}).get("total_return_pct"),
-            "open_positions": result.get("summary", {}).get("open_positions"),
-        }
+        return {"ok": True, "start_date": result.get("start_date"), "total_return_pct": result.get("summary", {}).get("total_return_pct"), "open_positions": result.get("summary", {}).get("open_positions")}
     except Exception as exc:
         return {"ok": False, "reason": f"portfolio_update_failed: {exc.__class__.__name__}: {exc}"}
 
@@ -185,18 +167,7 @@ def _candidate_rows(data: dict[str, Any], *, selected_at: str) -> Iterable[dict[
                 "price_at_signal": _float_or_none(item.get("current_price")),
                 "target_price": _float_or_none(item.get("target_price")),
                 "stop_loss_price": _float_or_none(item.get("stop_loss_price")),
-                "agent_scores_json": _json_text(
-                    {
-                        "agent_fit_score": item.get("agent_fit_score"),
-                        "final_score": item.get("final_score"),
-                        "ai_win_score": item.get("ai_win_score"),
-                        "ai_win_score_100": item.get("ai_win_score_100"),
-                        "adaptive_profit_score": item.get("adaptive_profit_score"),
-                        "adaptive_selected_period_months": item.get("adaptive_selected_period_months"),
-                        "rs_score": item.get("rs_score"),
-                        "extension_score": item.get("extension_score"),
-                    }
-                ),
+                "agent_scores_json": _json_text({"agent_fit_score": item.get("agent_fit_score"), "final_score": item.get("final_score"), "ai_win_score": item.get("ai_win_score"), "ai_win_score_100": item.get("ai_win_score_100"), "adaptive_profit_score": item.get("adaptive_profit_score"), "adaptive_selected_period_months": item.get("adaptive_selected_period_months"), "rs_score": item.get("rs_score"), "extension_score": item.get("extension_score")}),
                 "score_reasons_json": _json_text(item.get("profit_score_reasons")),
             }
 
