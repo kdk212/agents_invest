@@ -58,17 +58,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           body_file="/tmp/prism-import-pr.md"
-          cat > "$body_file" <<'EOF'
-## Summary
-- Imports PRISM-INSIGHT upstream under `prism-insight/`.
-- Applies agents_invest adapter wiring for profit scoring and risk governance.
-- Verifies integration markers and adapter idempotency.
-
-## Before live trading
-- Keep EC2 in paper mode.
-- Enter OpenAI/KIS/Telegram secrets through AWS SSM Parameter Store.
-- Confirm Telegram alerts, strict runtime preflight, paper validation, and kill switch behavior.
-EOF
+          printf '%s\n' \
+            '## Summary' \
+            '- Imports PRISM-INSIGHT upstream under `prism-insight/`.' \
+            '- Applies agents_invest adapter wiring for profit scoring and risk governance.' \
+            '- Verifies integration markers and adapter idempotency.' \
+            '' \
+            '## Before live trading' \
+            '- Keep EC2 in paper mode.' \
+            '- Enter OpenAI/KIS/Telegram secrets through AWS SSM Parameter Store.' \
+            '- Confirm Telegram alerts, strict runtime preflight, paper validation, and kill switch behavior.' \
+            > "$body_file"
           existing_pr="$(gh pr list --head integrate-prism-insight --base main --state open --json number --jq '.[0].number // empty')"
           if [ -n "$existing_pr" ]; then
             gh pr edit "$existing_pr" --title "Integrate PRISM-INSIGHT upstream" --body-file "$body_file"
