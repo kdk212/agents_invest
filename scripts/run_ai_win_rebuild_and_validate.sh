@@ -14,6 +14,7 @@ STOP_MULTIPLIERS="${STOP_MULTIPLIERS:-1.6,2.0,2.5,3.0}"
 TARGET_PCTS="${TARGET_PCTS:-15,20,25,30}"
 TRAILING_TRIGGER_PCTS="${TRAILING_TRIGGER_PCTS:-8,12,16}"
 TRAILING_DROP_PCTS="${TRAILING_DROP_PCTS:-6,9,12}"
+MIN_LIVE_RETURN_PCT="${MIN_LIVE_RETURN_PCT:--8.0}"
 EXPLAIN_QUERY="${EXPLAIN_QUERY:-001820}"
 STATUS_FILE="dashboard/ai_win_rebuild_status.json"
 VALIDATION_FILE="dashboard/ai_win_validation_latest.json"
@@ -68,6 +69,12 @@ run_step "$CURRENT_STEP" "$PYTHON_BIN" scripts/optimize_ai_win_grid_strategy.py 
   --trailing-trigger-pcts "$TRAILING_TRIGGER_PCTS" \
   --trailing-drop-pcts "$TRAILING_DROP_PCTS"
 
+CURRENT_STEP="Apply AI WIN portfolio guard"
+run_step "$CURRENT_STEP" "$PYTHON_BIN" scripts/apply_ai_win_portfolio_guard.py \
+  --portfolio-start "$PORTFOLIO_START" \
+  --universe-size "$UNIVERSE_SIZE" \
+  --min-live-return-pct "$MIN_LIVE_RETURN_PCT"
+
 CURRENT_STEP="Validate dashboard outputs"
 write_status "running" "$CURRENT_STEP"
 echo "== $CURRENT_STEP =="
@@ -90,10 +97,12 @@ for path in ["dashboard/adaptive_strategy.json", "dashboard/portfolio_status.jso
 
 strategy = json.loads(Path("dashboard/adaptive_strategy.json").read_text(encoding="utf-8"))
 portfolio = json.loads(Path("dashboard/portfolio_status.json").read_text(encoding="utf-8"))
+print("source:", strategy.get("source"))
 print("selected_top_n:", strategy.get("selected_top_n"))
 print("stop_multiplier:", strategy.get("stop_multiplier"))
 print("target_return_pct:", strategy.get("target_return_pct"))
 print("take_profit:", strategy.get("take_profit_trigger_pct"), strategy.get("take_profit_trailing_pct"))
+print("portfolio_guard:", strategy.get("portfolio_guard"))
 print("best_summary:", strategy.get("best_summary"))
 print("portfolio_summary:", portfolio.get("summary"))
 print("equity_curve_window:", portfolio.get("equity_curve_window"))
